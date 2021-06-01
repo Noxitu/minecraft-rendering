@@ -1,0 +1,15 @@
+# Project data
+/bak
+/data/
+/*.txt
+
+
+# Minecraft Files
+Docker/VanillaServer/minecraft_server*.jar
+noxitu/minecraft/map/blocks.json
+
+
+# Python
+/*.egg-info/
+__pycache__/
+/.pytest_cache
