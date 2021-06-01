@@ -24,6 +24,7 @@ class BlockRenderer:
 
         self._buffer = None
 
+        # Render
         self._program = program_factory.get('renderer')
 
         self._vao = glGenVertexArrays(1)
@@ -35,6 +36,15 @@ class BlockRenderer:
         glEnableVertexAttribArray(1)
         glVertexAttribPointer(self._program.attribute('in_color'), 3, GL_UNSIGNED_BYTE, GL_TRUE, 9, c_void_p(6))
 
+        # Shadow
+        self._shadow_program = program_factory.get('shadow')
+
+        self._shadow_vao = glGenVertexArrays(1)
+        glBindVertexArray(self._shadow_vao)
+
+        glEnableVertexAttribArray(0)
+        glVertexAttribPointer(self._shadow_program.attribute('in_position'), 3, GL_SHORT, GL_FALSE, 9, c_void_p(0))
+
         # Clean state
         glBindBuffer(GL_ARRAY_BUFFER, 0)
         glBindVertexArray(0)
@@ -45,10 +55,17 @@ class BlockRenderer:
     def render(self):
         self.before_render()
 
-        glBindBuffer(GL_ARRAY_BUFFER, self._vbo)
-
         self._program.use()
         glBindVertexArray(self._vao)
+        glDrawArrays(GL_QUADS, 0, 3*self._n)
+
+        self.after_render()
+
+    def render_shadow(self):
+        self.before_render()
+
+        self._shadow_program.use()
+        glBindVertexArray(self._shadow_vao)
         glDrawArrays(GL_QUADS, 0, 3*self._n)
 
         self.after_render()
