@@ -5,6 +5,7 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 
+import noxitu.pooling
 import noxitu.minecraft.map.load
 import noxitu.minecraft.renderer.view
 from noxitu.minecraft.renderer.world_faces import compute_face_mask, compute_face_colors, compute_faces
@@ -20,6 +21,10 @@ MID_X = 0
 MID_Z = 0
 
 SCREEN_WIDTH, SCREEN_HEIGHT = 1500, 720
+SHADOW_WIDTH = SHADOW_HEIGHT = 1024*8
+
+MODE_VIEW = 'view'
+MODE_SHADOW = 'shadow'
 
 
 def init_rendering(program_factory):
@@ -27,10 +32,15 @@ def init_rendering(program_factory):
 
     renderables = []
 
-    renderables.append(BlockRenderer(path='data/test-nowater.npz'))
     # renderables.append(ChunksRenderer(r=25))
     # renderables.append(OriginMarker())
-    # renderables.append(WaterRenderer(path='data/test-water.npz'))
+    renderables.append(BlockRenderer(path='data/test-nowater.npz'))
+    renderables.append(WaterRenderer(path='data/test-water.npz'))
+
+    # renderables.append(BlockRenderer(path='data/hermitcraft_s7_fresh.npz'))
+
+    # renderables.append(BlockRenderer(path='data/hermitcraft_s7_fresh-nowater.npz'))
+    # renderables.append(WaterRenderer(path='data/hermitcraft_s7_fresh-water.npz'))
 
     print('Creating OpenGL programs...')
     program_factory.create('renderer')
@@ -51,7 +61,7 @@ def init_rendering(program_factory):
 
     texture = glGenTextures(1)
     glBindTexture(GL_TEXTURE_2D, texture)
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, SCREEN_WIDTH, SCREEN_HEIGHT, 0, GL_RED, GL_FLOAT, None)
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_RED, GL_FLOAT, None)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
@@ -59,7 +69,7 @@ def init_rendering(program_factory):
 
     rbo2 = glGenRenderbuffers(1)
     glBindRenderbuffer(GL_RENDERBUFFER, rbo2)
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, SCREEN_WIDTH, SCREEN_HEIGHT)
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT)
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo2)
 
     render_shadow = True
@@ -68,11 +78,16 @@ def init_rendering(program_factory):
         nonlocal render_shadow
 
         if render_shadow:
+            print('Rendering shadow...')
+            glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT)
             glBindFramebuffer(GL_FRAMEBUFFER, fbo)
             glClearColor(float('inf'), 0, 0, 0)
         else:
             glBindFramebuffer(GL_FRAMEBUFFER, 0)
             glClearColor(0, 0, 0, 0)
+
+            glActiveTexture(GL_TEXTURE0)
+            glBindTexture(GL_TEXTURE_2D, texture)
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glEnable(GL_DEPTH_TEST)
@@ -85,15 +100,36 @@ def init_rendering(program_factory):
                 renderable.render()
 
         if render_shadow:
-            buffer = glReadPixels(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, GL_RED, GL_FLOAT)
+            print('Max pooling...')
+            buffer = glReadPixels(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT, GL_RED, GL_FLOAT)
             buffer = np.frombuffer(buffer, np.float32)
-            buffer = buffer.reshape(SCREEN_HEIGHT, SCREEN_WIDTH)[::-1]
-            print(np.amin(buffer), np.amax(buffer))
+            buffer = buffer.reshape(SHADOW_HEIGHT, SHADOW_WIDTH)
+            buffer2 = noxitu.pooling.max_pool(buffer)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_RED, GL_FLOAT, buffer2)
+
+            # buffer = glReadPixels(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT, GL_RED, GL_FLOAT)
+            # buffer = np.frombuffer(buffer, np.float32)
+            # buffer = buffer.reshape(SHADOW_HEIGHT, SHADOW_WIDTH)
+
+            # print(np.amin(buffer), np.amax(buffer))
             # import matplotlib.pyplot as plt
+            # plt.figure()
             # plt.imshow(buffer)
+            # plt.figure()
+            # plt.imshow(buffer2)
             # plt.show()
+            print('Shadow done.')
+
             render_shadow = False
+            glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
             draw()
+        else:
+            pass
+            # buffer = glReadPixels(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, GL_RGB, GL_UNSIGNED_BYTE)
+            # buffer = np.frombuffer(buffer, np.uint8)
+            # buffer = buffer.reshape(SCREEN_HEIGHT, SCREEN_WIDTH, 3)[..., ::-1]
+
+            # glDrawPixels(SCREEN_WIDTH, SCREEN_HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer)
 
   
     print('Initialization Done.')
@@ -134,10 +170,11 @@ def main():
 
     fov = 80
     perspective_matrix = noxitu.minecraft.renderer.view.perspective(fov, SCREEN_WIDTH/SCREEN_HEIGHT, 50, 5000)
+
     ortho_matrix = np.array([
         [0.003, 0, 0, 0],
-        [0, 0, 0.003, 0],
-        [0, -1, 0, 0],
+        [0, 0.003, 0, 0],
+        [0, 0, 1, 0],
         [0, 0, 0, 1],
     ])
 
@@ -151,8 +188,17 @@ def main():
     camera_roll = 0
     camera_position = np.array([MID_X, 100, MID_Z], dtype=float)
 
+    rotation_matrix = noxitu.minecraft.renderer.view.view(camera_yaw, camera_pitch, camera_roll)
+    location_matrix = noxitu.minecraft.renderer.view.location(camera_position)
+
+    # shadow_matrix = perspective_matrix @ rotation_matrix @ location_matrix
+    shadow_matrix = ortho_matrix @ noxitu.minecraft.renderer.view.view(0, -15, 0)
+    # shadow_matrix = ortho_matrix @ noxitu.minecraft.renderer.view.view(5, -70, 5)
+
     marker_position = None
     marker_rotation = None
+
+    mode = MODE_VIEW
 
     redraw = True
 
@@ -228,6 +274,10 @@ def main():
                         fov += 5
                     perspective_matrix = noxitu.minecraft.renderer.view.perspective(fov, SCREEN_WIDTH/SCREEN_HEIGHT, 5, 5000)
                     redraw = True
+                    
+                elif event.unicode == '3':
+                    mode = {MODE_VIEW: MODE_SHADOW, MODE_SHADOW: MODE_VIEW}[mode]
+                    redraw = True
 
             if any([
                 event.type == pygame.QUIT,
@@ -242,15 +292,21 @@ def main():
             redraw = False
 
             rendering_program.use()
-            rendering_program.set_uniform_mat4('projectionview_matrix', perspective_matrix @ rotation_matrix @ location_matrix)
+            if mode == MODE_VIEW:
+                rendering_program.set_uniform_mat4('projectionview_matrix', perspective_matrix @ rotation_matrix @ location_matrix)
+                glUniform2f(rendering_program.uniform('depth_range'), 1, 5000)
+            else:
+                rendering_program.set_uniform_mat4('projectionview_matrix', shadow_matrix)
+                glUniform2f(rendering_program.uniform('depth_range'), -5000, 5000)
 
-            glUniform2f(rendering_program.uniform('depth_range'), 1, 5000)
+            rendering_program.set_uniform_mat4('shadow_projectionview_matrix', shadow_matrix)
+
 
             shadow_program.use()
-            shadow_program.set_uniform_mat4('projectionview_matrix', perspective_matrix @ rotation_matrix @ location_matrix)
+            shadow_program.set_uniform_mat4('projectionview_matrix', shadow_matrix)
             # shadow_program.set_uniform_mat4('projectionview_matrix', ortho_matrix)
-            glUniform2f(shadow_program.uniform('depth_range'), -256, 0)
-            glUniform2f(rendering_program.uniform('depth_range'), 1, 5000)
+            glUniform2f(shadow_program.uniform('depth_range'), -5000, 5000)
+            # glUniform2f(rendering_program.uniform('depth_range'), 1, 5000)
 
             draw()
 

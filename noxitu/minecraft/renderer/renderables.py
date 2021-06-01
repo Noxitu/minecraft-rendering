@@ -83,6 +83,9 @@ class WaterRenderer(BlockRenderer):
         glBlendFunc(GL_CONSTANT_COLOR, GL_ONE_MINUS_CONSTANT_COLOR)
         glBlendColor(0.75, 0.75, 0.75, 1.0)
 
+    def render_shadow(self):
+        pass
+
     def after_render(self):
         glDisable(GL_BLEND)
 
