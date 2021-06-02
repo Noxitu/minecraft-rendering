@@ -1,7 +1,11 @@
 #include <amp.h>
+#include <iostream>
+#include <chrono>
 
 namespace
 {
+    constexpr bool LOG = false;
+
     inline unsigned int query_world(const concurrency::array_view<const unsigned int, 3> &buffer, int y, int z, int x) restrict(amp)
     {
         const unsigned int value = buffer(y, z, x/2);
@@ -19,7 +23,8 @@ namespace
                         const double rx_inv, const double ry_inv, const double rz_inv,
                         const int size_x, const int size_y, const int size_z,
                         const concurrency::array_view<const unsigned int, 3> &world_mask,
-                        double &depth
+                        double &depth,
+                        int &normal_idx
     ) restrict(amp)
     {
         double dx = INFINITY;
@@ -45,16 +50,19 @@ namespace
         {
             depth = dx;
             x += (rx_inv > 0 ? 1 : -1);
+            normal_idx = (rx_inv > 0 ? 1 : 2);
         }
         else if (dy < dz)
         {
             depth = dy;
             y += (ry_inv > 0 ? 1 : -1);
+            normal_idx = (ry_inv > 0 ? 3 : 4);
         }
         else
         {
             depth = dz;
             z += (rz_inv > 0 ? 1 : -1);
+            normal_idx = (rz_inv > 0 ? 5 : 6);
         }
 
         const bool inside = (x >= 0 && y >= 0 && z >= 0 && x < size_x && y < size_y && z < size_z);
@@ -77,8 +85,9 @@ namespace noxitu { namespace minecraft
     {
         namespace amp = concurrency;
 
-        const int OUTER_ITERATIONS = 20;
+        const int OUTER_ITERATIONS = 8;
         const int INNER_ITERATIONS = 128;
+        const int RAYS_PER_CALL = 500'000;
 
         const int n_rays = rays_.shape[0];
         const int ray_elements = 6;
@@ -134,45 +143,68 @@ namespace noxitu { namespace minecraft
 
         for (int outer_iter = 0; outer_iter < OUTER_ITERATIONS; ++outer_iter)
         {
-            amp::parallel_for_each(
-                result.extent,
-                [=](amp::index<1> idx) restrict(amp)
-                {
-                    const int i = idx[0];
+            for (int offset = 0; offset < n_rays; offset += RAYS_PER_CALL)
+            {
+                const int batch_size = min(n_rays-offset, RAYS_PER_CALL);
+                amp::extent<1> batch(batch_size);
 
-                    if (state(i, 3) != STATE_NORMAL)
-                        return;
+                const auto time_start = std::chrono::high_resolution_clock::now();
 
-                    const double x0 = rays(i, 0);
-                    const double y0 = rays(i, 1);
-                    const double z0 = rays(i, 2);
-                    const double rx_inv = 1/rays(i, 3);
-                    const double ry_inv = 1/rays(i, 4);
-                    const double rz_inv = 1/rays(i, 5);
+                if (LOG)
+                    std::cerr << "Starting batch: " << offset << ".." << offset+batch_size << std::endl;
 
-                    int x = state(i, 0);
-                    int y = state(i, 1);
-                    int z = state(i, 2);
-
-                    for(int iter = 0; iter < INNER_ITERATIONS; ++iter)
+                amp::parallel_for_each(
+                    batch,
+                    [=](amp::index<1> idx) restrict(amp)
                     {
-                        double depth;
-                        const bool hit = advance(x, y, z, x0, y0, z0, rx_inv, ry_inv, rz_inv, size_x, size_y, size_z, world_mask, depth);
+                        const int i = idx[0] + offset;
 
-                        if (hit)
+                        if (state(i, 3) != STATE_NORMAL)
+                            return;
+
+                        const double x0 = rays(i, 0);
+                        const double y0 = rays(i, 1);
+                        const double z0 = rays(i, 2);
+                        const double rx_inv = 1/rays(i, 3);
+                        const double ry_inv = 1/rays(i, 4);
+                        const double rz_inv = 1/rays(i, 5);
+
+                        int x = state(i, 0);
+                        int y = state(i, 1);
+                        int z = state(i, 2);
+
+                        for(int iter = 0; iter < INNER_ITERATIONS; ++iter)
                         {
-                            result(i) = query_world(world, y, z, x);
-                            result_depth(i) = depth;
-                            state(i, 3) = STATE_HIT;
-                            break;
-                        }
-                    }
+                            double depth;
+                            int normal_idx = 0;
+                            const bool hit = advance(x, y, z, x0, y0, z0, rx_inv, ry_inv, rz_inv, size_x, size_y, size_z, world_mask, depth, normal_idx);
 
-                    state(i, 0) = x;
-                    state(i, 1) = y;
-                    state(i, 2) = z;
+                            if (hit)
+                            {
+                                result(i) = 
+                                    query_world(world, y, z, x) & 0xffff |
+                                    (normal_idx << 16) & 0x70000;
+
+                                result_depth(i) = depth;
+                                state(i, 3) = STATE_HIT;
+                                break;
+                            }
+                        }
+
+                        state(i, 0) = x;
+                        state(i, 1) = y;
+                        state(i, 2) = z;
+                    }
+                );
+
+                const auto time_end = std::chrono::high_resolution_clock::now();
+
+                if (LOG)
+                {
+                    const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(time_end-time_start);
+                    std::cerr << "  batch took " << duration.count() << "ms" << std::endl;
                 }
-            );
+            }
         }
     };
 }}

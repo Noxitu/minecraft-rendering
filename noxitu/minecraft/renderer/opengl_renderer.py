@@ -26,7 +26,7 @@ SHADOW_WIDTH = SHADOW_HEIGHT = 1024*8
 MODE_VIEW = 'view'
 MODE_SHADOW = 'shadow'
 
-ENABLE_SHADOWS = False
+ENABLE_SHADOWS = True
 
 
 def init_rendering(program_factory):
@@ -196,8 +196,11 @@ def main():
     location_matrix = noxitu.minecraft.renderer.view.location(camera_position)
 
     # shadow_matrix = perspective_matrix @ rotation_matrix @ location_matrix
-    shadow_matrix = ortho_matrix @ noxitu.minecraft.renderer.view.view(0, -90, 0)
-    # shadow_matrix = ortho_matrix @ noxitu.minecraft.renderer.view.view(90, -55, 5)
+    # shadow_matrix = ortho_matrix @ noxitu.minecraft.renderer.view.view(0, -90, 0)
+    shadow_matrix = ortho_matrix @ noxitu.minecraft.renderer.view.view(90, -55, 5)
+
+    sun_direction = (noxitu.minecraft.renderer.view.view(90, -55, 5).T @ [0, 0, 1, 1])[:3]
+    sun_direction = sun_direction / np.linalg.norm(sun_direction)
 
     marker_position = None
     marker_rotation = None
