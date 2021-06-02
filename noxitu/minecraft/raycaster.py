@@ -9,7 +9,12 @@ from noxitu.minecraft.map.global_palette import GLOBAL_PALETTE, MATERIALS, MATER
 
 LOGGER = logging.getLogger(__name__)
 
-GLOBAL_COLORS = [MATERIAL_COLORS.get(MATERIALS.get(name)) for name in GLOBAL_PALETTE]
+def use_material(material):
+    # return material != 'water'
+    return True
+
+MATERIALS = [MATERIALS.get(name) for name in GLOBAL_PALETTE]
+GLOBAL_COLORS = [MATERIAL_COLORS.get(material if use_material(material) else None) for material in MATERIALS]
 GLOBAL_COLORS_MASK = np.array([c is not None for c in GLOBAL_COLORS])
 GLOBAL_COLORS = np.array([c if c is not None else [0, 0, 0] for c in GLOBAL_COLORS], dtype=np.uint8)
 
@@ -21,7 +26,23 @@ def array(a):
         a.ctypes.strides
     )
 
-raycast = ctypes.WinDLL('c++/build/raycast3d/Release/RayCasting.dll').raycast
+_raycast_impl = ctypes.WinDLL('c++/build/raycast3d/Release/RayCasting.dll').raycast
+
+def raycast(rays, world, mask):
+    render_height, render_width, _ = rays.shape
+
+    result = np.zeros((render_height, render_width), dtype=int)
+    result_depth = np.zeros((render_height, render_width), dtype=float)
+
+    _raycast_impl(
+        *array(rays.reshape(-1, 6)),
+        *array(world),
+        *array(mask),
+        *array(result.ravel()),
+        *array(result_depth.ravel())
+    )
+
+    return result, result_depth
 
 def main():
     LOGGER.info('Loading world...')
@@ -50,27 +71,34 @@ def main():
 
     LOGGER.info('Computing rays...')
     rays = np.array([
-        [camera_x, camera_y, camera_z, x, y, 1] 
+        [ [camera_x, camera_y, camera_z, x, y, 1] for x in np.linspace(-1, 1, render_width) ]
         for y in np.linspace(-1, 1, render_height)
-        for x in np.linspace(-1, 1, render_width)
     ], dtype=float)
     
-    rays[:, 3:] = np.einsum('rc,nc->nr', P_inv, rays[:, 3:])
-    rays[:, 3:] /= np.linalg.norm(rays[:, 3:], axis=1).reshape(-1, 1)
-
-    result = np.zeros((render_height*render_width), dtype=int)
+    rays[..., 3:] = np.einsum('rc,nmc->nmr', P_inv, rays[..., 3:])
+    rays[..., 3:] /= np.linalg.norm(rays[..., 3:], axis=2)[..., np.newaxis]
 
     LOGGER.info('Raycasting...')
-    raycast(*array(rays), *array(world), *array(mask), *array(result))
+    result, result_depth = raycast(rays, world, mask)
 
-    result = result.reshape(render_height, render_width)
-    result = GLOBAL_COLORS[result]
+    LOGGER.info('Raycasting shadows...')
+    rays[..., :3] = rays[..., :3] + rays[..., 3:] * result_depth[..., np.newaxis]
+    rays[..., 3:] = [-1, 20, 10]
+    rays[..., 3:] /= np.linalg.norm(rays[..., 3:], axis=2)[..., np.newaxis]
+
+    result_shadow, _ = raycast(rays, world, mask)
+    result_shadow_mask = (result_shadow != 0)
+        
+    result_colors = GLOBAL_COLORS[result]
+    result_colors[result_shadow_mask] = result_colors[result_shadow_mask] * 0.6
 
     LOGGER.info('Displaying...')
     import matplotlib.pyplot as plt
-    plt.imsave('data/viewports/p1.raycasting.png', result)
+    plt.imsave('data/viewports/p1.raycasting.png', result_colors)
     plt.figure()
-    plt.imshow(result)
+    plt.imshow(result_colors)
+    # plt.figure()
+    # plt.imshow(result_depth)
     plt.show()
 
     LOGGER.info('Done...')

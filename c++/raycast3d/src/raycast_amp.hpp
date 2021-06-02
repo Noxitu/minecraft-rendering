@@ -18,7 +18,9 @@ namespace
                         const double x0, const double y0, const double z0,
                         const double rx_inv, const double ry_inv, const double rz_inv,
                         const int size_x, const int size_y, const int size_z,
-                        const concurrency::array_view<const unsigned int, 3> &world_mask) restrict(amp)
+                        const concurrency::array_view<const unsigned int, 3> &world_mask,
+                        double &depth
+    ) restrict(amp)
     {
         double dx = INFINITY;
         double dy = INFINITY;
@@ -40,11 +42,20 @@ namespace
             dz = (z-z0)*rz_inv;
 
         if (dx < dy && dx < dz)
+        {
+            depth = dx;
             x += (rx_inv > 0 ? 1 : -1);
+        }
         else if (dy < dz)
+        {
+            depth = dy;
             y += (ry_inv > 0 ? 1 : -1);
+        }
         else
+        {
+            depth = dz;
             z += (rz_inv > 0 ? 1 : -1);
+        }
 
         const bool inside = (x >= 0 && y >= 0 && z >= 0 && x < size_x && y < size_y && z < size_z);
 
@@ -62,12 +73,12 @@ namespace noxitu { namespace minecraft
         STATE_HIT
     };
 
-    auto raycast = [](auto &rays_, auto &world_, auto &world_mask_, auto &result_)
+    auto raycast = [](auto &rays_, auto &world_, auto &world_mask_, auto &result_, auto &result_depth_)
     {
         namespace amp = concurrency;
 
         const int OUTER_ITERATIONS = 20;
-        const int INNER_ITERATIONS = 256;
+        const int INNER_ITERATIONS = 128;
 
         const int n_rays = rays_.shape[0];
         const int ray_elements = 6;
@@ -84,6 +95,9 @@ namespace noxitu { namespace minecraft
 
         if (n_rays != result_.shape[0])
             throw std::logic_error("raycast: incorrect result shape");
+
+        if (n_rays != result_depth_.shape[0])
+            throw std::logic_error("raycast: incorrect result_depth shape");
 
         if (size_x % 4 != 0)
             throw std::logic_error("raycast: require world.shape[2] divisible by 2");
@@ -105,6 +119,7 @@ namespace noxitu { namespace minecraft
         );
 
         amp::array_view<int, 1> result(n_rays, result_.data);
+        amp::array_view<double, 1> result_depth(n_rays, result_depth_.data);
 
         std::vector<int> state_buffer(4*n_rays);
         amp::array_view<int, 2> state(n_rays, 4, state_buffer.data());
@@ -141,11 +156,13 @@ namespace noxitu { namespace minecraft
 
                     for(int iter = 0; iter < INNER_ITERATIONS; ++iter)
                     {
-                        const bool hit = advance(x, y, z, x0, y0, z0, rx_inv, ry_inv, rz_inv, size_x, size_y, size_z, world_mask);
+                        double depth;
+                        const bool hit = advance(x, y, z, x0, y0, z0, rx_inv, ry_inv, rz_inv, size_x, size_y, size_z, world_mask, depth);
 
                         if (hit)
                         {
                             result(i) = query_world(world, y, z, x);
+                            result_depth(i) = depth;
                             state(i, 3) = STATE_HIT;
                             break;
                         }

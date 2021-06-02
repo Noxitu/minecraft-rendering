@@ -9,15 +9,17 @@ extern "C" __declspec(dllexport) void raycast(
     ARRAY_ARG_SIGNATURE(rays),
     ARRAY_ARG_SIGNATURE(world),
     ARRAY_ARG_SIGNATURE(world_mask),
-    ARRAY_ARG_SIGNATURE(result)
+    ARRAY_ARG_SIGNATURE(result),
+    ARRAY_ARG_SIGNATURE(result_depth)
 ) try
 {
     ARRAY_ARG_VALUE(array2d<double>, rays);
     ARRAY_ARG_VALUE(array3d<unsigned short>, world);
     ARRAY_ARG_VALUE(array3d<unsigned char>, world_mask);
     ARRAY_ARG_VALUE(array1d<int>, result);
+    ARRAY_ARG_VALUE(array1d<double>, result_depth);
 
-    noxitu::minecraft::raycast(rays, world, world_mask, result);
+    noxitu::minecraft::raycast(rays, world, world_mask, result, result_depth);
 }
 catch(std::exception &ex)
 {
