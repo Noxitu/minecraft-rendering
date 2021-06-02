@@ -26,6 +26,22 @@ def _load():
 GLOBAL_PALETTE = _load()
 
 MATERIALS = """
+    # Comment water entires for "nowater" layer.
+    water
+    minecraft:water
+    minecraft:bubble_column
+    minecraft:tall_seagrass
+    minecraft:seagrass
+    minecraft:kelp
+    minecraft:kelp_plant
+
+    # Add water plants as plants for "nowater" layer.
+    # plant
+    # minecraft:tall_seagrass
+    # minecraft:seagrass
+    # minecraft:kelp
+    # minecraft:kelp_plant
+
     none
     minecraft:air
     minecraft:cave_air
@@ -185,20 +201,6 @@ MATERIALS = """
     minecraft:mossy_stone_brick_wall
     minecraft:jigsaw
     minecraft:furnace
- 
-    water
-    # minecraft:water
-    # minecraft:bubble_column
-    # minecraft:tall_seagrass
-    # minecraft:seagrass
-    # minecraft:kelp
-    # minecraft:kelp_plant
-
-    plant
-    minecraft:tall_seagrass
-    minecraft:seagrass
-    minecraft:kelp
-    minecraft:kelp_plant
 
     wood
     minecraft:chest
@@ -418,11 +420,11 @@ MATERIALS = """
 
 """
 
-MATERIALS = """
-    water
-    minecraft:water
-    minecraft:bubble_column
-"""
+# MATERIALS = """
+#     water
+#     minecraft:water
+#     minecraft:bubble_column
+# """
 
 # MATERIALS = """
 #     fire

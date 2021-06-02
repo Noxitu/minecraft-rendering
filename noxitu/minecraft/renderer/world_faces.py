@@ -22,6 +22,7 @@ CUBE_FACES = np.array([
 ])
 CUBE_FACES = CUBE_FACES[:, ::-1]
 FACE_COLOR_MUL = [0.9 * pow(0.92, i) for i in range(6)]
+# FACE_COLOR_MUL = [1.0 for _ in range(6)]
 
 def compute_face_mask(world, tqdm=lambda x: x):
     sy, sz, sx = world.shape

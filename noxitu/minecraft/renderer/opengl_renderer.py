@@ -20,11 +20,13 @@ GLOBAL_COLORS = np.array([c if c is not None else [0, 0, 0] for c in GLOBAL_COLO
 MID_X = 0
 MID_Z = 0
 
-SCREEN_WIDTH, SCREEN_HEIGHT = 1500, 720
+SCREEN_WIDTH, SCREEN_HEIGHT = 1280, 720
 SHADOW_WIDTH = SHADOW_HEIGHT = 1024*8
 
 MODE_VIEW = 'view'
 MODE_SHADOW = 'shadow'
+
+ENABLE_SHADOWS = False
 
 
 def init_rendering(program_factory):
@@ -34,8 +36,10 @@ def init_rendering(program_factory):
 
     # renderables.append(ChunksRenderer(r=25))
     # renderables.append(OriginMarker())
-    renderables.append(BlockRenderer(path='data/test-nowater.npz'))
-    renderables.append(WaterRenderer(path='data/test-water.npz'))
+    renderables.append(BlockRenderer(path='data/output.npz'))
+
+    # renderables.append(BlockRenderer(path='data/test-nowater.npz'))
+    # renderables.append(WaterRenderer(path='data/test-water.npz'))
 
     # renderables.append(BlockRenderer(path='data/hermitcraft_s7_fresh.npz'))
 
@@ -72,7 +76,7 @@ def init_rendering(program_factory):
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT)
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo2)
 
-    render_shadow = True
+    render_shadow = ENABLE_SHADOWS
 
     def draw():
         nonlocal render_shadow
@@ -192,8 +196,8 @@ def main():
     location_matrix = noxitu.minecraft.renderer.view.location(camera_position)
 
     # shadow_matrix = perspective_matrix @ rotation_matrix @ location_matrix
-    shadow_matrix = ortho_matrix @ noxitu.minecraft.renderer.view.view(0, -15, 0)
-    # shadow_matrix = ortho_matrix @ noxitu.minecraft.renderer.view.view(5, -70, 5)
+    shadow_matrix = ortho_matrix @ noxitu.minecraft.renderer.view.view(0, -90, 0)
+    # shadow_matrix = ortho_matrix @ noxitu.minecraft.renderer.view.view(90, -55, 5)
 
     marker_position = None
     marker_rotation = None
@@ -278,6 +282,14 @@ def main():
                 elif event.unicode == '3':
                     mode = {MODE_VIEW: MODE_SHADOW, MODE_SHADOW: MODE_VIEW}[mode]
                     redraw = True
+
+                elif event.unicode == '4':
+                    np.savez('data/viewports/viewport.npz',
+                             camera=perspective_matrix[:3, :3],
+                             rotation=rotation_matrix[:3, :3],
+                             position=camera_position)
+                    print('Saved projection matrix.')
+
 
             if any([
                 event.type == pygame.QUIT,
