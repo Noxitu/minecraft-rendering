@@ -7,6 +7,7 @@ from OpenGL.GL import *
 from OpenGL.GLU import *    
 
 import noxitu.opengl
+from noxitu.minecraft.raycaster.buffer_renderer import create_buffer_renderer
 
 
 pygame.init()
@@ -18,7 +19,6 @@ print('GL_RENDERER =', str(glGetString(GL_RENDERER)))
 program_factory = noxitu.opengl.ProgramFactory(root=__file__)
 
 program = program_factory.create('example2', type='compute')
-draw = program_factory.create('example')
 
 x = (np.arange(256).reshape(1, -1) + np.arange(256).reshape(-1, 1)).astype(np.float32)
 y = np.zeros((256, 256), dtype=np.float32).copy()
@@ -26,6 +26,7 @@ y = np.zeros((256, 256), dtype=np.float32).copy()
 x_vbo, y_vbo = noxitu.opengl.create_buffers(x, y, usage=GL_STATIC_DRAW)
 
 pygame_clock = pygame.time.Clock()
+render_buffer = create_buffer_renderer(program_factory)
 
 while True:
     glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 0, 2, [x_vbo, y_vbo])
@@ -33,21 +34,7 @@ while True:
     program.use()
     glDispatchCompute(256, 256, 1)
 
-    # noxitu.opengl.read_buffer(y_vbo, into=y)
-
-    draw.use()
-    glUniform1iv(draw.uniform('canvas_size'), 2, [256, 256])
-
-    glBegin(GL_QUADS)
-    glColor(1, 0, 0)
-    glVertex2f(-1, -1)
-    glColor(1, 1, 0)
-    glVertex2f(1, -1)
-    glColor(1, 0, 1)
-    glVertex2f(1, 1)
-    glColor(1, 1, 1)
-    glVertex2f(-1, 1)
-    glEnd()
+    render_buffer((256, 256))
 
     pygame.display.flip()
     pygame.time.wait(1)
