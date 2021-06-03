@@ -173,6 +173,14 @@ namespace noxitu { namespace minecraft
                         int y = state(i, 1);
                         int z = state(i, 2);
 
+                        if (rx_inv > 0 && x >= size_x) return;
+                        if (ry_inv > 0 && y >= size_y) return;
+                        if (rz_inv > 0 && z >= size_z) return;
+
+                        if (rx_inv < 0 && x < 0) return;
+                        if (ry_inv < 0 && y < 0) return;
+                        if (rz_inv < 0 && z < 0) return;
+
                         for(int iter = 0; iter < INNER_ITERATIONS; ++iter)
                         {
                             double depth;

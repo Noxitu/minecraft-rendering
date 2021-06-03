@@ -15,8 +15,8 @@ GLOBAL_COLORS_MASK = np.array([c is not None for c in GLOBAL_COLORS])
 GLOBAL_COLORS = np.array([c if c is not None else [0, 0, 0] for c in GLOBAL_COLORS], dtype=np.uint8)
 IS_WATER = np.array([MATERIALS.get(name) == 'water' for name in GLOBAL_PALETTE])
 
-# render_height, render_width = 300, 400
-render_height, render_width = 720, 1280
+render_height, render_width = 300, 400
+# render_height, render_width = 720, 1280
 # render_height, render_width = 1080, 1920
 # render_height, render_width = 1080*2, 1920*2
 
@@ -63,31 +63,31 @@ def main():
     LOGGER.info('Computing shadow rays...')
     shadow_rays = noxitu.minecraft.raycaster.rays.compute_shadow_rays(rays, result_depths, SUN_DIRECTION)
 
-    LOGGER.info('Raycasting shadows...')
-    result_shadow, _, _ = raycast(shadow_rays, world, mask)
-    result_shadow_mask = (result_shadow != 0)
+    # LOGGER.info('Raycasting shadows...')
+    # result_shadow, _, _ = raycast(shadow_rays, world, mask)
+    # result_shadow_mask = (result_shadow != 0)
         
-    result_diffuse_factors[result_shadow_mask] *= 0.3
-    result_colors[:] = result_colors * (result_diffuse_factors*0.4 + 0.6)[..., np.newaxis]
+    # result_diffuse_factors[result_shadow_mask] *= 0.3
+    # result_colors[:] = result_colors * (result_diffuse_factors*0.4 + 0.6)[..., np.newaxis]
 
     LOGGER.info('Computing water reflection rays...')
     water_rays = shadow_rays[water_mask]
     water_rays[..., 3:] = rays[water_mask, 3:]
     water_rays[..., 4] *= -1
 
-    LOGGER.info('Raycasting water reflections...')
-    water_result, _, water_normals_idx = raycast(water_rays, world, mask)
-    has_reflection = (water_result != 0)
-    water_with_reflection = chain_masks(water_mask, has_reflection)
-    water_colors = GLOBAL_COLORS[water_result[has_reflection]]
+    # LOGGER.info('Raycasting water reflections...')
+    # water_result, _, water_normals_idx = raycast(water_rays, world, mask)
+    # has_reflection = (water_result != 0)
+    # water_with_reflection = chain_masks(water_mask, has_reflection)
+    # water_colors = GLOBAL_COLORS[water_result[has_reflection]]
 
-    water_diffuse_factors = noxitu.minecraft.raycaster.rays.compute_diffuse_factors(NORMALS_IDX,
-                                                                                    SUN_DIRECTION * [0, -1, 0],
-                                                                                    indices=water_normals_idx[has_reflection])
+    # water_diffuse_factors = noxitu.minecraft.raycaster.rays.compute_diffuse_factors(NORMALS_IDX,
+    #                                                                                 SUN_DIRECTION * [0, -1, 0],
+    #                                                                                 indices=water_normals_idx[has_reflection])
 
-    water_colors[:] = water_colors * (water_diffuse_factors[..., np.newaxis]*0.4 + 0.6)
+    # water_colors[:] = water_colors * (water_diffuse_factors[..., np.newaxis]*0.4 + 0.6)
 
-    result_colors[water_with_reflection] = 0.75*result_colors[water_with_reflection] + 0.25*water_colors
+    # result_colors[water_with_reflection] = 0.75*result_colors[water_with_reflection] + 0.25*water_colors
 
     LOGGER.info('Computing underwater rays...')
     water_rays = shadow_rays[water_mask]
@@ -97,7 +97,7 @@ def main():
     underwater_hit_mask = (GLOBAL_COLORS_MASK & ~IS_WATER)[world]
 
     LOGGER.info('Raycasting underwater water...')
-    underwater_result, _, underwater_normals_idx = raycast(water_rays, world, underwater_hit_mask)
+    underwater_result, underwater_depths, underwater_normals_idx = raycast(water_rays, world, underwater_hit_mask)
     underwater_colors = GLOBAL_COLORS[underwater_result]
 
     underwater_diffuse_factors = noxitu.minecraft.raycaster.rays.compute_diffuse_factors(NORMALS_IDX,
@@ -106,8 +106,16 @@ def main():
 
     underwater_colors[:] = underwater_colors * (underwater_diffuse_factors[..., np.newaxis]*0.4 + 0.6)
 
+    MIN_DEPTH = 5
+    MAX_DEPTH = MIN_DEPTH+20
+    underwater_depth_penalty = water_rays[..., 1] + water_rays[..., 4] * underwater_depths
+    underwater_depth_penalty = 64 - underwater_depth_penalty
+    underwater_depth_penalty = (underwater_depth_penalty - MIN_DEPTH) / (MAX_DEPTH - MIN_DEPTH)
+    underwater_depth_penalty[underwater_depth_penalty < 0] = 0
+    underwater_depth_penalty[underwater_depth_penalty > 1] = 1
+    underwater_depth_penalty = 1 - underwater_depth_penalty
 
-    result_colors[water_mask] = 0.8*result_colors[water_mask] + 0.2*underwater_colors
+    result_colors[water_mask] = 0.8*result_colors[water_mask] + 0.2*underwater_colors * underwater_depth_penalty[..., np.newaxis]
 
     LOGGER.info('Displaying...')
     import matplotlib.pyplot as plt
@@ -116,7 +124,7 @@ def main():
         plt.figure()
         plt.imshow(result_colors)
         # plt.figure()
-        # plt.imshow(result_depth2)
+        # plt.imshow(result_depths)
         # plt.figure()
         # plt.imshow(IS_WATER[result])
         plt.show()

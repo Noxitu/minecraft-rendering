@@ -5,7 +5,7 @@ import noxitu.minecraft.map.load
 
 
 def load_world():
-    RADIUS = 16
+    RADIUS = 48
 
     offset, world = noxitu.minecraft.map.load.load(
         'data/chunks',
