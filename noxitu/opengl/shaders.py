@@ -1,6 +1,10 @@
+import logging
 import os
 
 from OpenGL.GL import *
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _create_shader(shader_source, shader_type, root=None):
@@ -85,7 +89,7 @@ class ProgramFactory:
         program = self._programs.get(name)
 
         if program is None:
-            print(f'Creating program "{name}"')
+            LOGGER.info(f'Creating program "{name}"')
 
             if type == 'render':
                 program = Program(vs=f'{name}.vert.glsl', fs=f'{name}.frag.glsl', root=self._root)

@@ -3,9 +3,9 @@ from OpenGL.GL import *
 def create_buffer_renderer(program_factory):
     program = program_factory.create('buffer_renderer')
 
-    def render(canvas_size):
+    def render(height, width):
         program.use()
-        glUniform1iv(program.uniform('canvas_size'), 2, canvas_size)
+        glUniform1iv(program.uniform('canvas_size'), 2, [height, width])
 
         glBegin(GL_QUADS)
         glColor(1, 0, 0)

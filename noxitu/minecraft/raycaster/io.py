@@ -5,7 +5,7 @@ import noxitu.minecraft.map.load
 
 
 def load_world():
-    RADIUS = 48
+    RADIUS = 16
 
     offset, world = noxitu.minecraft.map.load.load(
         'data/chunks',
@@ -19,6 +19,6 @@ def load_world():
 
 
 def load_viewport():
-    return np.load('data/viewports/viewport.npz')
-    # return np.load('data/viewports/p1.npz')
+    # return np.load('data/viewports/viewport.npz')
+    return np.load('data/viewports/p1.npz')
     # return np.load('data/viewports/p2.npz')

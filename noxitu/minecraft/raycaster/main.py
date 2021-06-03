@@ -16,9 +16,9 @@ GLOBAL_COLORS = np.array([c if c is not None else [0, 0, 0] for c in GLOBAL_COLO
 IS_WATER = np.array([MATERIALS.get(name) == 'water' for name in GLOBAL_PALETTE])
 
 # render_height, render_width = 300, 400
-# render_height, render_width = 720, 1280
+render_height, render_width = 720, 1280
 # render_height, render_width = 1080, 1920
-render_height, render_width = 1080*2, 1920*2
+# render_height, render_width = 1080*2, 1920*2
 
 
 NORMALS_IDX = np.array([

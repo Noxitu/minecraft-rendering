@@ -34,7 +34,7 @@ while True:
     program.use()
     glDispatchCompute(256, 256, 1)
 
-    render_buffer((256, 256))
+    render_buffer(256, 256)
 
     pygame.display.flip()
     pygame.time.wait(1)

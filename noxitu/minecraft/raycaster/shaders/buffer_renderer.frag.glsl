@@ -10,6 +10,10 @@ uniform int canvas_size[2];
 void main() {
     int ix = int(coord.x);
     int iy = int(coord.y);
-    if (ix >= 0 && ix < canvas_size[0] && iy >= 0 && iy < canvas_size[1])
-        out_color.x = float(y[iy*canvas_size[0]+ix]) / 512;
+
+    int width = canvas_size[1];
+    int height = canvas_size[0];
+
+    if (ix >= 0 && ix < width && iy >= 0 && iy < height)
+        out_color.x = float(y[iy*width+ix]) / 512;
 }

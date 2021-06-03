@@ -14,6 +14,15 @@ def create_buffers(*arrays, usage):
     return vbos
 
 
+def create_empty_buffer(*, shape, dtype, usage):
+    vbo = glGenBuffers(1)
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, vbo)
+    glBufferData(GL_SHADER_STORAGE_BUFFER, np.prod(shape) * np.dtype(dtype).itemsize, usage=usage)
+
+    return vbo
+
+
 def read_buffer(vbo, *, into=None, like=None):
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, vbo)
 
