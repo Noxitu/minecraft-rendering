@@ -15,6 +15,9 @@ class BlockRenderer:
         print(f'shape={buffer.shape}    dtype={buffer.dtype}    size={buffer.size*buffer.itemsize/1024/1024:.0f} MB')
         self._buffer = buffer
 
+        print(buffer.shape)
+        asd
+
     def init_gpu(self, program_factory):
         self._vbo = glGenBuffers(1)
         self._n = self._buffer.size

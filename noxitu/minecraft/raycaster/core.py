@@ -40,8 +40,13 @@ def chain_masks(base, *masks):
     ret = base.copy()
 
     for mask in masks:
-        print(ret.shape, mask.shape, np.sum(ret))
-        print(ret[ret].shape)
+        # print(ret.shape, mask.shape, np.sum(ret))
+        # print(ret[ret].shape)
         ret[ret] &= mask
 
     return ret
+
+
+def normalize_factors(*factors, mask=..., norm=sum):
+    factors = np.array(factors, dtype=float)
+    return factors / norm(factors[mask])

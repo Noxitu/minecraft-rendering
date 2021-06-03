@@ -43,7 +43,7 @@ def load(path, tqdm=lambda x: x, x_range=None, y_range=None, z_range=None):
     size_y = y_range.stop - y_range.start
     size_z = max_z - min_z + 1
 
-    print(f'Allocating {1.0*size_y*16*size_z*16*size_x/1024/1024/1024:.01f} GB...')
+    print(f'Allocating {1.0*size_y*16*size_z*16*size_x*2/1024/1024/1024:.01f} GB...')
     world = np.zeros((size_y, 16*size_z, 16*size_x), dtype=np.uint16)
 
     for chunk in tqdm(chunks_paths):

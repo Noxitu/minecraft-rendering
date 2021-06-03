@@ -28,7 +28,9 @@ def compute_shadow_rays(rays, depths, sunlight):
 
 def compute_diffuse_factors(normals, sunlight, *, indices=None):
     diffuse_factors = np.einsum('ni,i->n', normals, sunlight)
-    diffuse_factors[diffuse_factors < 0] = 0
+
+    diffuse_factors[diffuse_factors > 0] = diffuse_factors[diffuse_factors > 0] * 0.7 + 0.3
+    diffuse_factors[diffuse_factors < 0] = diffuse_factors[diffuse_factors < 0] * 0.3 + 0.3
 
     if indices is not None:
         diffuse_factors = diffuse_factors[indices]
