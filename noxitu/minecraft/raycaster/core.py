@@ -16,7 +16,7 @@ def raycast(rays, world, mask):
     result = np.zeros(rays.shape[:-1], dtype=int)
     result_depth = np.zeros(rays.shape[:-1], dtype=float)
 
-    batch_size = 1_000_000
+    batch_size = 100_000
 
     for offset in range(0, result.size, batch_size):
         batch = slice(offset, offset+batch_size)

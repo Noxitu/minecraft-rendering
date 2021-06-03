@@ -36,12 +36,12 @@ def init_rendering(program_factory):
 
     # renderables.append(ChunksRenderer(r=25))
     # renderables.append(OriginMarker())
-    renderables.append(BlockRenderer(path='data/output.npz'))
+    # renderables.append(BlockRenderer(path='data/output.npz'))
 
     # renderables.append(BlockRenderer(path='data/test-nowater.npz'))
     # renderables.append(WaterRenderer(path='data/test-water.npz'))
 
-    # renderables.append(BlockRenderer(path='data/hermitcraft_s7_fresh.npz'))
+    renderables.append(BlockRenderer(path='data/hermitcraft_s7_fresh.npz'))
 
     # renderables.append(BlockRenderer(path='data/hermitcraft_s7_fresh-nowater.npz'))
     # renderables.append(WaterRenderer(path='data/hermitcraft_s7_fresh-water.npz'))

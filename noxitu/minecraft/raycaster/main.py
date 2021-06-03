@@ -9,15 +9,16 @@ from noxitu.minecraft.map.global_palette import GLOBAL_PALETTE, MATERIALS, MATER
 
 LOGGER = logging.getLogger(__name__)
 
-GLOBAL_COLORS = [MATERIAL_COLORS.get(MATERIALS.get(name)) for name in GLOBAL_PALETTE]
+GLOBAL_MATERIALS = [MATERIALS.get(name) for name in GLOBAL_PALETTE]
+GLOBAL_COLORS = [MATERIAL_COLORS.get(material) for material in GLOBAL_MATERIALS]
 GLOBAL_COLORS_MASK = np.array([c is not None for c in GLOBAL_COLORS])
 GLOBAL_COLORS = np.array([c if c is not None else [0, 0, 0] for c in GLOBAL_COLORS], dtype=np.uint8)
 IS_WATER = np.array([MATERIALS.get(name) == 'water' for name in GLOBAL_PALETTE])
 
 # render_height, render_width = 300, 400
-render_height, render_width = 720, 1280
+# render_height, render_width = 720, 1280
 # render_height, render_width = 1080, 1920
-# render_height, render_width = 1080*4, 1920*4
+render_height, render_width = 1080*2, 1920*2
 
 
 NORMALS_IDX = np.array([
@@ -52,6 +53,7 @@ def main():
     LOGGER.info('Raycasting...')
     result_id, result_depths, result_normal_idx = raycast(rays, world, mask)
     # visible_mask = (result_id != 0)
+    water_mask = IS_WATER[result_id]
     result_colors = GLOBAL_COLORS[result_id]
 
     result_diffuse_factors = noxitu.minecraft.raycaster.rays.compute_diffuse_factors(NORMALS_IDX,
@@ -69,7 +71,6 @@ def main():
     result_colors[:] = result_colors * (result_diffuse_factors*0.4 + 0.6)[..., np.newaxis]
 
     LOGGER.info('Computing water reflection rays...')
-    water_mask = IS_WATER[result_id]
     water_rays = shadow_rays[water_mask]
     water_rays[..., 3:] = rays[water_mask, 3:]
     water_rays[..., 4] *= -1
@@ -87,6 +88,26 @@ def main():
     water_colors[:] = water_colors * (water_diffuse_factors[..., np.newaxis]*0.4 + 0.6)
 
     result_colors[water_with_reflection] = 0.75*result_colors[water_with_reflection] + 0.25*water_colors
+
+    LOGGER.info('Computing underwater rays...')
+    water_rays = shadow_rays[water_mask]
+    water_rays[..., 3:] = rays[water_mask, 3:]
+
+    LOGGER.info('Computing underwater hit mask...')
+    underwater_hit_mask = (GLOBAL_COLORS_MASK & ~IS_WATER)[world]
+
+    LOGGER.info('Raycasting underwater water...')
+    underwater_result, _, underwater_normals_idx = raycast(water_rays, world, underwater_hit_mask)
+    underwater_colors = GLOBAL_COLORS[underwater_result]
+
+    underwater_diffuse_factors = noxitu.minecraft.raycaster.rays.compute_diffuse_factors(NORMALS_IDX,
+                                                                                         SUN_DIRECTION,
+                                                                                         indices=underwater_normals_idx)
+
+    underwater_colors[:] = underwater_colors * (underwater_diffuse_factors[..., np.newaxis]*0.4 + 0.6)
+
+
+    result_colors[water_mask] = 0.8*result_colors[water_mask] + 0.2*underwater_colors
 
     LOGGER.info('Displaying...')
     import matplotlib.pyplot as plt

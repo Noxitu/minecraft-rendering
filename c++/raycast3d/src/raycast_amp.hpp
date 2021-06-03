@@ -85,7 +85,7 @@ namespace noxitu { namespace minecraft
     {
         namespace amp = concurrency;
 
-        const int OUTER_ITERATIONS = 8;
+        const int OUTER_ITERATIONS = 64;
         const int INNER_ITERATIONS = 128;
         const int RAYS_PER_CALL = 500'000;
 
