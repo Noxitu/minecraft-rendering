@@ -15,5 +15,7 @@ def create_default_state(**kwargs):
         camera_roll=0,
         camera_position=np.array([0, 100, 0], dtype=float),
         sun_direction=SUN_DIRECTION,
+        redraw=True,
+        view_distance=1,
         **kwargs
     )

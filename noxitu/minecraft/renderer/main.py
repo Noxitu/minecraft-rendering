@@ -13,26 +13,20 @@ from noxitu.minecraft.renderer.state import create_default_state
 import noxitu.minecraft.renderer.io
 import noxitu.minecraft.renderer.view as view
 
-LOGGER = logging.getLogger(__name__)
-logging.basicConfig(
-    format='%(asctime)s -- %(message)s',
-    level=logging.INFO
-)
 
-SUN_DIRECTION = np.array([1, 3, -3], dtype=float)
-SUN_DIRECTION /= np.linalg.norm(SUN_DIRECTION)
+LAZY_RENDERING = True
 
 # SCREEN_WIDTH, SCREEN_HEIGHT = 64, 36
 # SCREEN_WIDTH, SCREEN_HEIGHT = 320, 180
 SCREEN_WIDTH, SCREEN_HEIGHT = 1280, 720
 # SCREEN_WIDTH, SCREEN_HEIGHT = 1920, 1080
 
-LOGGER.info('Loading data...')
-blocks = noxitu.minecraft.renderer.io.load_blocks()
-# viewport = noxitu.minecraft.renderer.io.load_viewport()
+LOGGER = logging.getLogger(__name__)
+
 
 def to_mega_chunk(position):
     return np.floor(position / 256).astype(int)
+
 
 def compute_mega_chunks(blocks):
     LOGGER.info('Computing mega chunk keys...')
@@ -60,8 +54,6 @@ def compute_mega_chunks(blocks):
 
     return ret
 
-mega_chunks = compute_mega_chunks(blocks)
-blocks = None
 
 def create_vao(array):
     vbo = noxitu.opengl.create_buffers(array, usage=GL_STATIC_DRAW)
@@ -71,68 +63,86 @@ def create_vao(array):
     glBindBuffer(GL_ARRAY_BUFFER, vbo)
 
     glEnableVertexAttribArray(0)
-    glVertexAttribPointer(program.attribute('in_position'), 3, GL_SHORT, GL_FALSE, 10, c_void_p(0))
+    glVertexAttribPointer(0, 3, GL_SHORT, GL_FALSE, 10, c_void_p(0))
 
     glEnableVertexAttribArray(1)
-    glVertexAttribIPointer(program.attribute('in_direction'), 3, GL_UNSIGNED_BYTE, 10, c_void_p(6))
+    glVertexAttribIPointer(1, 3, GL_UNSIGNED_BYTE, 10, c_void_p(6))
 
     glEnableVertexAttribArray(2)
-    glVertexAttribPointer(program.attribute('in_color'), 3, GL_UNSIGNED_BYTE, GL_TRUE, 10, c_void_p(7))
+    glVertexAttribPointer(2, 3, GL_UNSIGNED_BYTE, GL_TRUE, 10, c_void_p(7))
 
     return vbo, vao, len(array)
 
-pygame.init()
-pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), DOUBLEBUF | OPENGL)
 
-print('GL_VENDOR   =', str(glGetString(GL_VENDOR)))
-print('GL_RENDERER =', str(glGetString(GL_RENDERER)))
+def main():
+    LOGGER.info('Loading data...')
+    blocks = noxitu.minecraft.renderer.io.load_blocks()
+    # viewport = noxitu.minecraft.renderer.io.load_viewport()    
 
-clock = pygame.time.Clock()
+    mega_chunks = compute_mega_chunks(blocks)
+    blocks = None
 
-# program = noxitu.opengl.Program(vs='play.vert.glsl', fs='play.frag.glsl', gs='play.geom.glsl', root=__file__)
-program = noxitu.opengl.Program(vs='play2.vert.glsl', fs='play2.frag.glsl', gs='play2.geom.glsl', root=__file__)
-actual_attribute_locations = [program.attribute(attr) for attr in 'in_position in_direction in_color'.split()]
-assert actual_attribute_locations == [0, 1, 2], f'Invalid attribute locations: {actual_attribute_locations}.'
+    pygame.init()
+    pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), DOUBLEBUF | OPENGL)
 
-mega_chunks_vaos = {
-    key: create_vao(value)
-    for key, value in mega_chunks.items()
-} 
+    print('GL_VENDOR   =', str(glGetString(GL_VENDOR)))
+    print('GL_RENDERER =', str(glGetString(GL_RENDERER)))
 
-state = create_default_state(
-    redraw=True,
-    screen_size=(SCREEN_WIDTH, SCREEN_HEIGHT)
-)
+    clock = pygame.time.Clock()
 
-while True:
-    pygame.display.set_caption(f'FPS = {clock.get_fps():.01f}')
+    program = noxitu.opengl.Program(vs='play2.vert.glsl', fs='play2.frag.glsl', gs='play2.geom.glsl', root=__file__)
+    actual_attribute_locations = [program.attribute(attr) for attr in 'in_position in_direction in_color'.split()]
+    assert actual_attribute_locations == [0, 1, 2], f'Invalid attribute locations: {actual_attribute_locations}.'
 
-    handle_events(state)
+    mega_chunks_vaos = {
+        key: create_vao(value)
+        for key, value in mega_chunks.items()
+    } 
 
-    camera_matrix = view.perspective(state.fov, state.screen_size[0]/state.screen_size[1])
-    rotation_matrix = view.view(state.camera_yaw, state.camera_pitch, state.camera_roll)
-    location_matrix = view.location(state.camera_position)
-    
-    projectionview_matrix = camera_matrix @ rotation_matrix @ location_matrix
+    state = create_default_state(
+        screen_size=(SCREEN_WIDTH, SCREEN_HEIGHT)
+    )
 
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-    glEnable(GL_DEPTH_TEST)
-    glEnable(GL_CULL_FACE)
+    while True:
+        pygame.display.set_caption(f'FPS = {clock.get_fps():.01f}')
 
-    program.use()
+        handle_events(state)
 
-    program.set_uniform_mat4('projectionview_matrix', projectionview_matrix)
-    glUniform3f(program.uniform('sun_direction'), *state.sun_direction)
+        if state.redraw or not LAZY_RENDERING:
+            state.redraw = False
 
-    camera_chunk = to_mega_chunk(state.camera_position)
+            camera_matrix = view.perspective(state.fov, state.screen_size[0]/state.screen_size[1])
+            rotation_matrix = view.view(state.camera_yaw, state.camera_pitch, state.camera_roll)
+            location_matrix = view.location(state.camera_position)
+            
+            projectionview_matrix = camera_matrix @ rotation_matrix @ location_matrix
 
-    for chunk_key, (_, vao, n_blocks) in mega_chunks_vaos.items():
-        if np.linalg.norm(camera_chunk - chunk_key, ord=np.inf) <= 1:
-            glBindVertexArray(vao)
-            glDrawArrays(GL_POINTS, 0, n_blocks)
-    
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+            glEnable(GL_DEPTH_TEST)
+            glEnable(GL_CULL_FACE)
 
-    clock.tick()
+            program.use()
 
-    pygame.display.flip()
+            program.set_uniform_mat4('projectionview_matrix', projectionview_matrix)
+            glUniform3f(program.uniform('sun_direction'), *state.sun_direction)
 
+            camera_chunk = to_mega_chunk(state.camera_position)[::2]
+
+            for chunk_key, (_, vao, n_blocks) in mega_chunks_vaos.items():
+                if np.linalg.norm(camera_chunk - chunk_key[::2], ord=np.inf) <= state.view_distance:
+                    glBindVertexArray(vao)
+                    glDrawArrays(GL_POINTS, 0, n_blocks)
+            
+
+            clock.tick()
+
+            pygame.display.flip()
+
+
+if __name__ == '__main__':
+    logging.basicConfig(
+        format='%(asctime)s -- %(message)s',
+        level=logging.INFO
+    )
+
+    main()

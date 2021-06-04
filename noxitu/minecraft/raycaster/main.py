@@ -186,9 +186,11 @@ def main():
 
     LOGGER.info('Done...')
 
+
 if __name__ == '__main__':
     logging.basicConfig(
         format='%(asctime)s -- %(message)s',
         level=logging.INFO
     )
+
     main()
