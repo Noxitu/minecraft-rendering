@@ -1,26 +1,26 @@
 
 | Rendering | Raycasting |
 | --- | --- |
-| ![Rendering example][docs/rendering.png] | ![Raycasting example][docs/raycasting.png] |
+| ![Rendering example](docs/rendering.png) | ![Raycasting example](docs/raycasting.png) |
 
 ## Rendering
 
 Renders scene using Python bindings to modern OpenGL.
- [x] Uses geometry shader to render single points as block faces.
- [ ] Has separate water layer for blending with underwater blocks. (implemented in deprecated `opengl_renderer`)
- [ ] Computes and uses shadow map texture. (implemented in deprecated `opengl_renderer`)
- [ ] Renders shadow map texture in projection appopieate for current view.
- [ ] Renders far chunks as part of sky box to provide high fps with large view distance.
+ - [x] Uses geometry shader to render single points as block faces.
+ - [ ] Has separate water layer for blending with underwater blocks. (implemented in deprecated `opengl_renderer`)
+ - [ ] Computes and uses shadow map texture. (implemented in deprecated `opengl_renderer`)
+ - [ ] Renders shadow map texture in projection appopieate for current view.
+ - [ ] Renders far chunks as part of sky box to provide high fps with large view distance.
 
 In current implementation using `4000x3000` chunks of freshly generated Hermitcraft Season 7 seed (`WLLBYUG`) has 4 frames per second. 
 
 ## Raycasting
 
 Renders scene using custom raytracer. Vector manipulation is done in Python using Numpy, while the core raytracing is run on GPU using Microsoft AMP library.
- [x] Raytraces all target pixels to find first block.
- [x] Raytraces all pixels in direction of sun to find shadows.
- [x] Performs light refraction according to Snell's Law while rendering underwater objects.
- [x] Performs light reflection according to Schlick's approximation of Fresnel formula.
+ - [x] Raytraces all target pixels to find first block.
+ - [x] Raytraces all pixels in direction of sun to find shadows.
+ - [x] Performs light refraction according to Snell's Law while rendering underwater objects.
+ - [x] Performs light reflection according to Schlick's approximation of Fresnel formula.
 
 In current implementation huge limitation is size of buffer describing world, which needs to fit fully in GPU memory.
 
