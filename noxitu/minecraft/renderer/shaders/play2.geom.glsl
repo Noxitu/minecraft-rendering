@@ -2,7 +2,7 @@
 layout (points) in;
 layout (triangle_strip, max_vertices = 4) out;
 
-in unsigned char block_direction[];
+in uint block_direction[];
 in vec3 block_color[];
 out vec3 vertex_color;
 
@@ -24,15 +24,16 @@ vec4 to_opengl(vec4 pnt)
 }
 
 void main() {
-    int idx0 = int(block_direction[0] - 1u) / 2;
+    int direction = int(block_direction[0]);
+    int idx0 = (direction - 1) / 2;
 
-    bool positive = (block_direction[0]%2u == 0u);
-    int idx_step = (positive) ? 1 : 2;
+    bool positive = (direction == 2 || direction == 4 || direction == 6);
+
+    int idx_step = positive ? 1 : 2;
     int idx1 = (idx0+idx_step) % 3;
     int idx2 = (idx1+idx_step) % 3;
 
-    vec3 p1 = vec3(0, 0, 0);
-    if (positive) p1[idx0] += 1;
+    vec3 p1 = vec3(direction == 2, direction == 4, direction == 6);
 
     vec3 p2 = p1;
     p2[idx1] += 1;
@@ -43,8 +44,7 @@ void main() {
     vec3 p4 = p2;
     p4[idx2] += 1;
 
-    vec3 normal = vec3(0, 0, 0);
-    normal[idx0] = (positive ? 1 : -1);
+    vec3 normal = p1 - vec3(direction == 1, direction == 3, direction == 5);
 
     float diffuse_factor = dot(normal, sun_direction);
     diffuse_factor = (diffuse_factor > 0 ? diffuse_factor * 0.7 + 0.3 : diffuse_factor * 0.3 + 0.3);

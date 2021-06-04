@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import numpy as np
 
 
-SUN_DIRECTION = np.array([1, 3, -3], dtype=float)
+SUN_DIRECTION = np.array([1, 3, -2.5], dtype=float)
 SUN_DIRECTION /= np.linalg.norm(SUN_DIRECTION)
 
 
