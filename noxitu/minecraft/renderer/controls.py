@@ -121,7 +121,15 @@ def save_viewport(state):
         camera_orientation=(state.camera_yaw, state.camera_pitch, state.camera_roll)
     )
 
-    LOGGER.info('Saved viewport.')
+    LOGGER.info('Saved viewport.npz')
+
+    import noxitu.opengl
+    import matplotlib.pyplot as plt
+
+    image = noxitu.opengl.read_pixels(*state.screen_size)
+    plt.imsave('data/viewports/viewport.png', image)
+
+    LOGGER.info('Saved viewport.png')
 
 
 @on_keyup('5')

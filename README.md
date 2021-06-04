@@ -1,4 +1,8 @@
 
+| Rendering | Raycasting |
+| --- | --- |
+| ![Rendering example][docs/rendering.png] | ![Raycasting example][docs/raycasting.png] |
+
 ## Rendering
 
 Renders scene using Python bindings to modern OpenGL.

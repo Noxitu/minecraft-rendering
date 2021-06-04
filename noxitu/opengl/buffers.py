@@ -32,3 +32,10 @@ def read_buffer(vbo, *, into=None, like=None):
     if like is not None:
         buffer = glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, like.size * like.itemsize)
         return np.frombuffer(buffer, like=like)
+
+
+def read_pixels(width, height):
+    buffer = glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE)
+    buffer = np.frombuffer(buffer, np.uint8)
+    buffer = buffer.reshape(height, width, 3)[::-1]
+    return buffer
