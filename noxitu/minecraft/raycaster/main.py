@@ -73,8 +73,8 @@ def main():
     LOGGER.info('Computing rays...')
     rays = noxitu.minecraft.raycaster.rays.create_camera_rays(
         position=viewport['position'],
-        rotation=viewport['rotation'],
-        camera=viewport['camera'],
+        rotation=viewport['rotation'][:3, :3],
+        camera=viewport['camera'][:3, :3],
         resolution=(render_height, render_width),
         offset=offset
     )

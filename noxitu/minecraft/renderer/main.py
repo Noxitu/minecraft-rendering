@@ -6,11 +6,12 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 import numpy as np
-from tqdm import tqdm
 
 import noxitu.opengl
+from noxitu.minecraft.renderer.controls import handle_events
+from noxitu.minecraft.renderer.state import create_default_state
 import noxitu.minecraft.renderer.io
-from noxitu.minecraft.renderer.view import view
+import noxitu.minecraft.renderer.view as view
 
 LOGGER = logging.getLogger(__name__)
 logging.basicConfig(
@@ -28,7 +29,7 @@ SCREEN_WIDTH, SCREEN_HEIGHT = 1280, 720
 
 LOGGER.info('Loading data...')
 blocks = noxitu.minecraft.renderer.io.load_blocks()
-viewport = noxitu.minecraft.renderer.io.load_viewport()
+# viewport = noxitu.minecraft.renderer.io.load_viewport()
 
 def to_mega_chunk(position):
     return np.floor(position / 256).astype(int)
@@ -98,32 +99,35 @@ mega_chunks_vaos = {
     for key, value in mega_chunks.items()
 } 
 
+state = create_default_state(
+    redraw=True,
+    screen_size=(SCREEN_WIDTH, SCREEN_HEIGHT)
+)
+
 while True:
     pygame.display.set_caption(f'FPS = {clock.get_fps():.01f}')
 
-    for event in pygame.event.get():
-        if any([event.type == pygame.QUIT, event.type == pygame.KEYUP and event.unicode == 'q']):
-            pygame.quit()
-            quit()
+    handle_events(state)
+
+    camera_matrix = view.perspective(state.fov, state.screen_size[0]/state.screen_size[1])
+    rotation_matrix = view.view(state.camera_yaw, state.camera_pitch, state.camera_roll)
+    location_matrix = view.location(state.camera_position)
+    
+    projectionview_matrix = camera_matrix @ rotation_matrix @ location_matrix
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_CULL_FACE)
 
     program.use()
-    camera_matrix = noxitu.minecraft.renderer.view.perspective(1, 1, None, None)
-    camera_matrix[:3, :3] = viewport['camera']
-    rotation_matrix = np.eye(4)
-    rotation_matrix[:3, :3] = viewport['rotation']
-    location_matrix = noxitu.minecraft.renderer.view.location(viewport['position'])
 
-    program.set_uniform_mat4('projectionview_matrix', camera_matrix @ rotation_matrix @ location_matrix)
-    glUniform3f(program.uniform('sun_direction'), *SUN_DIRECTION)
+    program.set_uniform_mat4('projectionview_matrix', projectionview_matrix)
+    glUniform3f(program.uniform('sun_direction'), *state.sun_direction)
 
-    camera_chunk = to_mega_chunk(viewport['position'])
+    camera_chunk = to_mega_chunk(state.camera_position)
 
     for chunk_key, (_, vao, n_blocks) in mega_chunks_vaos.items():
-        if np.linalg.norm(camera_chunk - chunk_key, ord=np.inf) <= 2:
+        if np.linalg.norm(camera_chunk - chunk_key, ord=np.inf) <= 1:
             glBindVertexArray(vao)
             glDrawArrays(GL_POINTS, 0, n_blocks)
     

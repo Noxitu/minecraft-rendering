@@ -10,7 +10,7 @@ TRANSFORM_TO_NORTH = np.array([
     0, 0, 0, 1
 ]).reshape(4, 4)
 
-def perspective(fov_x, aspect, near, far):
+def perspective(fov_x, aspect, near=None, far=None):
     fov_x = math.pi*fov_x/180
     f = 1 / math.tan(fov_x / 2)
 
