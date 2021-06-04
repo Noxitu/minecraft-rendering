@@ -2,7 +2,7 @@ import logging
 import numpy as np
 from numpy.linalg.linalg import norm
 
-from noxitu.minecraft.raycaster.core import chain_masks, raycast, normalize_factors
+from noxitu.minecraft.raycaster.core import chain_masks, raycast, normalize_factors, pyplot
 import noxitu.minecraft.raycaster.rays
 import noxitu.minecraft.raycaster.io as io
 
@@ -16,12 +16,13 @@ GLOBAL_COLORS_MASK = np.array([c is not None for c in GLOBAL_COLORS])
 GLOBAL_COLORS = np.array([c if c is not None else [0, 0, 0] for c in GLOBAL_COLORS], dtype=np.uint8)
 IS_WATER = np.array([MATERIALS.get(name) == 'water' for name in GLOBAL_PALETTE])
 
-# render_height, render_width = 300, 400
-render_height, render_width = 720, 1280
+render_height, render_width = 300, 400
+# render_height, render_width = 720, 1280
 # render_height, render_width = 1080, 1920
 # render_height, render_width = 1080*2, 1920*2
 
-WATER_FACTORS = 0.6, 0.25, 0.07
+WATER_SURFACE_DIFFUSION_FACTOR = 0.5
+WATER_DEPTH_DIFFUSION_FACTOR = 0.94
 AMBIENT_FACTOR, DIFFUSE_FACTOR = normalize_factors(0.5, 0.5)
 
 
@@ -37,12 +38,37 @@ SUN_DIRECTION = np.array([1, 3, -3], dtype=float)
 SUN_DIRECTION /= np.linalg.norm(SUN_DIRECTION)
 
 
+def reduce_size(offset, world, camera_position, camera_rotation=None):
+    new_size = 1400
+    middle_offset = -np.array([new_size / 2, 0, new_size / 2])
+
+    if camera_rotation is not None:
+        dx, _, dz = camera_rotation.T @ [0, 0, 1]
+        middle_offset += [dx*new_size/4, 0, dz*new_size/4]
+
+    new_height = slice(None)
+    x0, _, z0 = (camera_position - offset + middle_offset).astype(int)
+    x0 = max(0, x0)
+    z0 = max(0, z0)
+    offset = offset + [x0, 0, z0]
+    world = world[new_height, z0:z0+new_size, x0:x0+new_size].copy()
+
+    size = np.prod(world.shape, dtype=float)*2/1024/1024/1024
+    LOGGER.info('  reduced to shape %s and size %.02f GB', world.shape, size)
+    assert size < 2.0
+
+    return offset, world
+
+
 def main():
     LOGGER.info('Loading world...')
     offset, world = io.load_world()
 
     LOGGER.info('Reading viewport...')
     viewport = io.load_viewport()
+
+    LOGGER.info('Limiting world size...')
+    offset, world = reduce_size(offset, world, viewport['position'], viewport['rotation'])
 
     LOGGER.info('Computing rays...')
     rays = noxitu.minecraft.raycaster.rays.create_camera_rays(
@@ -89,9 +115,17 @@ def main():
         if compute_underwater or compute_water_reflections:
             water_mask = IS_WATER[ids]
 
+            # Schlick's approximation of Fresnel factor:
+            R0 = ((1.0 - 1.33) / (1.0 + 1.33)) ** 2
+            cosine = rays[water_mask, 3:].dot([0, -1, 0])
+            reflectance = R0 + (1-R0) * np.power(1 - cosine, 5)
+
+            water_factors = np.stack([
+                WATER_SURFACE_DIFFUSION_FACTOR * np.ones_like(reflectance), 
+                (1-WATER_SURFACE_DIFFUSION_FACTOR) * (1-reflectance),
+                (1-WATER_SURFACE_DIFFUSION_FACTOR) * reflectance
+            ], axis=0)[..., np.newaxis]
             
-            water_factors = normalize_factors(*WATER_FACTORS,
-                                              mask=[True, compute_underwater, compute_water_reflections])
             water_colors = colors[water_mask] * water_factors[0]
 
             if compute_underwater:
@@ -99,15 +133,25 @@ def main():
 
                 underwater_rays = rays[water_mask, 3:]
 
-                # Apply Snell Law approximation for air -> water refraction:
+                # Apply Snell's Law custom approximation for air -> water refraction:
                 underwater_rays[..., 1] = 0.908 * underwater_rays[..., 1] - 0.41
 
                 underwater_rays = noxitu.minecraft.raycaster.rays.compute_shadow_rays(rays[water_mask], depths[water_mask], underwater_rays)
-                _, _, _, underwater_colors = do_raycast(underwater_rays,
+                _, underwater_depths, _, underwater_colors = do_raycast(underwater_rays,
                                                         block_mask=GLOBAL_COLORS_MASK & ~IS_WATER,
                                                         compute_shadows=True,
                                                         compute_underwater=False,
                                                         compute_water_reflections=False)
+
+                underwater_depth_factor1 = np.power(WATER_DEPTH_DIFFUSION_FACTOR, underwater_depths)
+                underwater_depth_factor2 = np.power(WATER_DEPTH_DIFFUSION_FACTOR, -underwater_depths*underwater_rays[..., 4])
+
+                # x = underwater_colors.copy()
+
+                underwater_colors = underwater_colors * underwater_depth_factor1[..., np.newaxis]
+                underwater_colors += ((1-underwater_depth_factor1) * underwater_depth_factor2)[..., np.newaxis] * colors[water_mask]
+
+                # pyplot(underwater_depth_factor1, underwater_depth_factor2, x, underwater_colors / 255, mask=water_mask)
 
                 water_colors += underwater_colors * water_factors[1]
 
@@ -136,13 +180,9 @@ def main():
     LOGGER.info('Displaying...')
     import matplotlib.pyplot as plt
     plt.imsave('data/viewports/p1.raycasting.png', colors)
-    plt.figure()
-    plt.imshow(colors)
-    # plt.figure()
-    # plt.imshow(result_depths)
-    # plt.figure()
-    # plt.imshow(IS_WATER[result])
-    plt.show()
+    pyplot(
+        colors,
+    )
 
     LOGGER.info('Done...')
 

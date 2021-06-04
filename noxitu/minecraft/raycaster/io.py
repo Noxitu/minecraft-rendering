@@ -18,14 +18,14 @@ def load_world():
     # np.savez('data/tmp.npz', offset=offset, world=world)
     fd = np.load('data/tmp.npz')
     offset, world = fd['offset'], fd['world']
-    _, _, x = -offset + [0, 0, 1000]
-    world = world[:, :1000, x:].copy()
-    offset += [0, 0, x]
+    # _, _, x = -offset + [0, 0, 1000]
+    # world = world[:, :1000, x:].copy()
+    # offset += [0, 0, x]
     # world = world[30:130]
     # offset[0] += 30
-    size = np.prod(world.shape)*2/1024/1024/1024
+    size = np.prod(world.shape, dtype=float)*2/1024/1024/1024
     print(world.shape, ' = ', size, 'GB')
-    assert size < 2.0
+    # assert size < 2.0
 
     return offset[[2, 0, 1]], world
 
