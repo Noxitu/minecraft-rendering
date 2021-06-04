@@ -18,8 +18,11 @@ LAZY_RENDERING = True
 
 # SCREEN_WIDTH, SCREEN_HEIGHT = 64, 36
 # SCREEN_WIDTH, SCREEN_HEIGHT = 320, 180
+# SCREEN_WIDTH, SCREEN_HEIGHT = 640, 360
 SCREEN_WIDTH, SCREEN_HEIGHT = 1280, 720
 # SCREEN_WIDTH, SCREEN_HEIGHT = 1920, 1080
+
+PANORAMA_WIDTH, PANORAMA_HEIGHT = 8000, 8000
 
 LOGGER = logging.getLogger(__name__)
 
@@ -74,6 +77,16 @@ def create_vao(array):
     return vbo, vao, len(array)
 
 
+def create_program(name, **defines):
+    return noxitu.opengl.Program(
+        vs=f'{name}.vert.glsl',
+        fs=f'{name}.frag.glsl',
+        gs=f'{name}.geom.glsl',
+        root=__file__,
+        defines=defines
+    )
+
+
 def main():
     LOGGER.info('Loading data...')
     blocks = noxitu.minecraft.renderer.io.load_blocks()
@@ -90,7 +103,12 @@ def main():
 
     clock = pygame.time.Clock()
 
-    program = noxitu.opengl.Program(vs='play2.vert.glsl', fs='play2.frag.glsl', gs='play2.geom.glsl', root=__file__)
+    panorama_framebuffer, panorama_texture = noxitu.opengl.create_texture_framebuffer(PANORAMA_WIDTH, PANORAMA_HEIGHT)
+    default_framebuffer = 0
+
+    panoramabox_program = create_program('render_panorama_box')
+    panorama_renderer_program = create_program('play2', PROJECTION_FUNC='project_to_panorama')
+    program = create_program('play2')
     actual_attribute_locations = [program.attribute(attr) for attr in 'in_position in_direction in_color'.split()]
     assert actual_attribute_locations == [0, 1, 2], f'Invalid attribute locations: {actual_attribute_locations}.'
 
@@ -100,8 +118,11 @@ def main():
     } 
 
     state = create_default_state(
+        experimental=False,
         screen_size=(SCREEN_WIDTH, SCREEN_HEIGHT)
     )
+
+    redraw_panorama = True
 
     while True:
         pygame.display.set_caption(f'FPS = {clock.get_fps():.01f}')
@@ -114,25 +135,63 @@ def main():
             camera_matrix = view.perspective(state.fov, state.screen_size[0]/state.screen_size[1])
             rotation_matrix = view.view(state.camera_yaw, state.camera_pitch, state.camera_roll)
             location_matrix = view.location(state.camera_position)
-            
-            projectionview_matrix = camera_matrix @ rotation_matrix @ location_matrix
-
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-            glEnable(GL_DEPTH_TEST)
-            glEnable(GL_CULL_FACE)
-
-            program.use()
-
-            program.set_uniform_mat4('projectionview_matrix', projectionview_matrix)
-            glUniform3f(program.uniform('sun_direction'), *state.sun_direction)
-
             camera_chunk = to_mega_chunk(state.camera_position)[::2]
 
-            for chunk_key, (_, vao, n_blocks) in mega_chunks_vaos.items():
-                if np.linalg.norm(camera_chunk - chunk_key[::2], ord=np.inf) <= state.view_distance:
-                    glBindVertexArray(vao)
-                    glDrawArrays(GL_POINTS, 0, n_blocks)
-            
+            projectionview_matrix = camera_matrix @ rotation_matrix @ location_matrix
+
+            if state.experimental or True:
+                # redraw_panorama = False
+
+                panorama_renderer_program.use()
+
+                glUniform3f(panorama_renderer_program.uniform('camera_position'), *state.camera_position)
+                glUniform3f(panorama_renderer_program.uniform('sun_direction'), *state.sun_direction)
+
+
+                glBindFramebuffer(GL_FRAMEBUFFER, panorama_framebuffer)
+                glViewport(0, 0, PANORAMA_WIDTH, PANORAMA_HEIGHT)
+
+                # glBindFramebuffer(GL_FRAMEBUFFER, default_framebuffer)
+                # glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+                glEnable(GL_DEPTH_TEST)
+                glEnable(GL_CULL_FACE)
+
+                for chunk_key, (_, vao, n_blocks) in mega_chunks_vaos.items():
+                    if np.linalg.norm(camera_chunk - chunk_key[::2], ord=np.inf) > state.view_distance:
+                        glBindVertexArray(vao)
+                        glDrawArrays(GL_POINTS, 0, n_blocks)
+
+            if not state.experimental or True:
+                glBindFramebuffer(GL_FRAMEBUFFER, default_framebuffer)
+                glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+
+                panoramabox_program.use()
+                panoramabox_program.set_uniform_mat3('ray_matrix', np.linalg.inv(projectionview_matrix[:3, :3]))
+
+                glActiveTexture(GL_TEXTURE0)
+                glBindTexture(GL_TEXTURE_2D, panorama_texture)
+
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+                glEnable(GL_DEPTH_TEST)
+                glEnable(GL_CULL_FACE)
+
+                glBegin(GL_POINTS)
+                glVertex2f(0, 0)
+                glEnd()
+
+                program.use()
+
+                projectionview_matrix = camera_matrix @ rotation_matrix @ location_matrix
+
+                program.set_uniform_mat4('projectionview_matrix', projectionview_matrix)
+                glUniform3f(program.uniform('sun_direction'), *state.sun_direction)
+
+                for chunk_key, (_, vao, n_blocks) in mega_chunks_vaos.items():
+                    if np.linalg.norm(camera_chunk - chunk_key[::2], ord=np.inf) <= state.view_distance:
+                        glBindVertexArray(vao)
+                        glDrawArrays(GL_POINTS, 0, n_blocks)
 
             clock.tick()
 

@@ -145,6 +145,12 @@ def decrease_view_distance(state):
     state.redraw = True
 
 
+@on_keyup('0')
+def decrease_view_distance(state):
+    state.experimental = not state.experimental
+    state.redraw = True
+
+
 @on_keyup('q')
 @on_quit
 def decrease_fov(_state):

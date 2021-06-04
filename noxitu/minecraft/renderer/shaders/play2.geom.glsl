@@ -1,4 +1,8 @@
 #version 330 core
+
+#define PROJECTION_FUNC project_from_camera
+// #define PROJECTION_FUNC project_to_panorama
+
 layout (points) in;
 layout (triangle_strip, max_vertices = 4) out;
 
@@ -6,15 +10,57 @@ in uint block_direction[];
 in vec3 block_color[];
 out vec3 vertex_color;
 
+uniform mat4 projectionview_matrix;
+uniform vec3 sun_direction;
+uniform vec3 camera_position;
+
 const float DIFFUSE_FACTOR = 0.4;
 const float AMBIENT_FACTOR = 1.0 - DIFFUSE_FACTOR;
 
-uniform mat4 projectionview_matrix;
-uniform vec3 sun_direction;
+const float PI = 3.1415926535897932384626433832795;
 
-vec4 project(vec3 point_in_world)
+vec4 project_from_camera(vec3 point_in_world, float _unused)
 {
     return projectionview_matrix * vec4(point_in_world, 1.0);
+}
+
+float to_yaw(vec3 pnt)
+{
+    float yaw = atan(pnt.z, pnt.x) / PI;
+    return yaw;
+}
+
+float to_yaw(vec3 pnt, float primary_yaw)
+{
+    float yaw = atan(pnt.z, pnt.x) / PI;
+
+    if (yaw > primary_yaw+1)
+        return yaw-2;
+
+    if (yaw < primary_yaw-1)
+        return yaw+2;
+
+    return yaw;
+}
+
+float to_coord2(float y, float x)
+{
+    return y/x;
+    float ret = 2 * atan(y, x) / PI;
+    return ret;
+}
+
+vec4 project_to_panorama(vec3 point_in_world, float primary_yaw)
+{
+    point_in_world -= camera_position;
+    float horizontal = length(point_in_world.xz);
+    
+    return vec4(
+        to_yaw(point_in_world, primary_yaw),
+        -to_coord2(point_in_world.y, horizontal),
+        horizontal-1,
+        1.0
+    );
 }
 
 vec4 to_opengl(vec4 pnt)
@@ -52,16 +98,18 @@ void main() {
 
     vec3 block_position = gl_in[0].gl_Position.xyz;
 
-    gl_Position = to_opengl(project(block_position + p1));
+    float primary_yaw = to_yaw(gl_in[0].gl_Position.xyz - camera_position);
+
+    gl_Position = to_opengl(PROJECTION_FUNC(block_position + p1, primary_yaw));
     EmitVertex();
 
-    gl_Position = to_opengl(project(block_position + p2));
+    gl_Position = to_opengl(PROJECTION_FUNC(block_position + p2, primary_yaw));
     EmitVertex();
 
-    gl_Position = to_opengl(project(block_position + p3));
+    gl_Position = to_opengl(PROJECTION_FUNC(block_position + p3, primary_yaw));
     EmitVertex();
 
-    gl_Position = to_opengl(project(block_position + p4));
+    gl_Position = to_opengl(PROJECTION_FUNC(block_position + p4, primary_yaw));
     EmitVertex();
     
     EndPrimitive();
