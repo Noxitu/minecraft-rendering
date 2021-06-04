@@ -13,7 +13,7 @@ GLOBAL_COLORS = np.array([c if c is not None else [0, 0, 0] for c in GLOBAL_COLO
 def main():
     print('Loading world...')
 
-    S = 24
+    S = 4000
 
     offset, world = noxitu.minecraft.map.load.load('data/chunks',
                                                    tqdm=tqdm,
@@ -30,24 +30,47 @@ def main():
     face_colors = compute_face_colors(face_coords, world, GLOBAL_COLORS)
     world = None
 
-    print('Computing vertices...')
-    print(f'  size = {n_faces*3*4*2/1024/1024/1024:.01f} GB')
-    vertices, vertex_colors = compute_faces(face_coords, face_colors)
-    face_coords = face_coords = None
-    vertices += offset
-    
-    print('Creating buffer...')
+    if False:
+        print('Computing vertices...')
+        print(f'  size = {n_faces*3*4*2/1024/1024/1024:.01f} GB')
+        vertices, vertex_colors = compute_faces(face_coords, face_colors)
+        face_coords = face_coords = None
+        vertices += offset
+        
+        print('Creating buffer...')
 
-    n = len(vertices)
+        n = len(vertices)
 
-    buffer = np.zeros((n, 4), dtype=[('vertices', '3int16'), ('colors', '3uint8')])
-    buffer['vertices'] = vertices
-    buffer['colors'] = vertex_colors
-    vertices = vertex_colors = None
+        buffer = np.zeros((n, 4), dtype=[('vertices', '3int16'), ('colors', '3uint8')])
+        buffer['vertices'] = vertices
+        buffer['colors'] = vertex_colors
+        vertices = vertex_colors = None
 
-    print('Saving buffer...')
-    np.savez_compressed('data/output.npz', buffer=buffer)
+        print('Saving buffer...')
+        np.savez_compressed('data/face_buffers/output.npz', buffer=buffer)
 
+    else:
+        face_directions = np.concatenate([
+            [i]*len(colors) for i, colors in enumerate(face_colors)
+        ])
+
+        n = len(face_directions)
+
+        buffer = np.zeros((n,), dtype=[('position', '3int16'), ('direction', 'uint8'), ('color', '3uint8')])
+        buffer['direction'] = face_directions + 1
+        
+        for i in range(6):
+            ys, zs, xs = face_coords[i]
+            buffer['position'][face_directions==i, 0] = xs
+            buffer['position'][face_directions==i, 1] = ys
+            buffer['position'][face_directions==i, 2] = zs
+            buffer['color'][face_directions==i] = face_colors[i]
+
+        buffer['position'] += offset
+
+        print(f'Storing buffer with size {buffer.size*buffer.itemsize/1024/1024/1024:.02f} GB')
+
+        np.savez_compressed('data/block_buffers/output.npz', buffer=buffer)
 
 if __name__ == '__main__':
     main()

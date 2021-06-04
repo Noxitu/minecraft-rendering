@@ -31,10 +31,21 @@ def _create_shader(shader_source, shader_type, root=None):
         raise
 
 
+_ALLOWED_SHADER_COMBINATIONS = {
+    (True, False, False, False),
+    (False, True, True, False),
+    (False, True, True, True)
+}
+
+
+def _check_shader_combination(*args):
+    args = tuple(arg is not None for arg in args)
+    return args in _ALLOWED_SHADER_COMBINATIONS
+
 class Program:
-    def __init__(self, *, cs=None, vs=None, fs=None, root=None):
-        if (cs is None) in [(vs is None), (fs is None)]:
-            raise Exception('Invalid shader types provided. Provide either cs alone or vs and fs.')
+    def __init__(self, *, cs=None, vs=None, fs=None, gs=None, root=None):
+        if not _check_shader_combination(cs, vs, fs, gs):
+            raise Exception('Invalid shader types provided.')
 
         self._program = glCreateProgram()
 
@@ -49,6 +60,9 @@ class Program:
 
             if fs is not None:
                 shaders.append(_create_shader(fs, GL_FRAGMENT_SHADER, root=root))
+
+            if gs is not None:
+                shaders.append(_create_shader(gs, GL_GEOMETRY_SHADER, root=root))
 
             for shader in shaders:
                 glAttachShader(self._program, shader)

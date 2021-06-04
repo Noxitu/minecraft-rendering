@@ -59,6 +59,9 @@ class Program:
     def use(self):
         glUseProgram(self._program)
 
+    def set_uniform_mat3(self, name, matrix):
+        glUniformMatrix3fv(self.uniform(name), 1, GL_TRUE, matrix)
+
     def set_uniform_mat4(self, name, matrix):
         glUniformMatrix4fv(self.uniform(name), 1, GL_TRUE, matrix)
 
