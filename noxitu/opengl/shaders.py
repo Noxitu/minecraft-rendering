@@ -7,13 +7,16 @@ from OpenGL.GL import *
 LOGGER = logging.getLogger(__name__)
 
 
-def _create_shader(shader_source, shader_type, root=None):
+def _create_shader(shader_source, shader_type, root=None, defines={}):
     if root is not None:
         if os.path.isfile(root):
             root = os.path.join(os.path.dirname(root), 'shaders')
         
         with open(os.path.join(root, shader_source)) as fd:
             shader_source = fd.read()
+
+        for key, value in defines.items():
+            shader_source = shader_source.replace(f'#define {key}', f'#define {key} {value} //')
 
     try:
         shader = glCreateShader(shader_type)
@@ -43,7 +46,7 @@ def _check_shader_combination(*args):
     return args in _ALLOWED_SHADER_COMBINATIONS
 
 class Program:
-    def __init__(self, *, cs=None, vs=None, fs=None, gs=None, root=None):
+    def __init__(self, *, cs=None, vs=None, fs=None, gs=None, root=None, defines={}):
         if not _check_shader_combination(cs, vs, fs, gs):
             raise Exception('Invalid shader types provided.')
 
@@ -53,16 +56,16 @@ class Program:
 
         try:
             if cs is not None:
-                shaders.append(_create_shader(cs, GL_COMPUTE_SHADER, root=root))
+                shaders.append(_create_shader(cs, GL_COMPUTE_SHADER, root=root, defines=defines))
 
             if vs is not None:
-                shaders.append(_create_shader(vs, GL_VERTEX_SHADER, root=root))
+                shaders.append(_create_shader(vs, GL_VERTEX_SHADER, root=root, defines=defines))
 
             if fs is not None:
-                shaders.append(_create_shader(fs, GL_FRAGMENT_SHADER, root=root))
+                shaders.append(_create_shader(fs, GL_FRAGMENT_SHADER, root=root, defines=defines))
 
             if gs is not None:
-                shaders.append(_create_shader(gs, GL_GEOMETRY_SHADER, root=root))
+                shaders.append(_create_shader(gs, GL_GEOMETRY_SHADER, root=root, defines=defines))
 
             for shader in shaders:
                 glAttachShader(self._program, shader)
@@ -86,6 +89,9 @@ class Program:
 
     def attribute(self, name):
         return glGetAttribLocation(self._program, name)
+
+    def set_uniform_mat3(self, name, matrix):
+        glUniformMatrix3fv(self.uniform(name), 1, GL_TRUE, matrix)
 
     def set_uniform_mat4(self, name, matrix):
         glUniformMatrix4fv(self.uniform(name), 1, GL_TRUE, matrix)

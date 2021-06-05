@@ -26,19 +26,18 @@ vec4 project_from_camera(vec3 point_in_world, float _unused)
 
 float to_yaw(vec3 pnt)
 {
-    float yaw = atan(pnt.z, pnt.x) / PI;
-    return yaw;
+    return 2 * atan(pnt.z, pnt.x) / PI + 2;
 }
 
 float to_yaw(vec3 pnt, float primary_yaw)
 {
-    float yaw = atan(pnt.z, pnt.x) / PI;
+    float yaw = to_yaw(pnt);
 
-    if (yaw > primary_yaw+1)
-        return yaw-2;
+    if (yaw > primary_yaw+2)
+        return yaw-4;
 
-    if (yaw < primary_yaw-1)
-        return yaw+2;
+    if (yaw < primary_yaw-2)
+        return yaw+4;
 
     return yaw;
 }
@@ -56,7 +55,7 @@ vec4 project_to_panorama(vec3 point_in_world, float primary_yaw)
     float horizontal = length(point_in_world.xz);
     
     return vec4(
-        to_yaw(point_in_world, primary_yaw),
+        to_yaw(point_in_world, primary_yaw) / 2 - 1,
         -to_coord2(point_in_world.y, horizontal),
         horizontal-1,
         1.0

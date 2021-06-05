@@ -1,46 +1,39 @@
 #version 330
 
-in vec2 frag_coord;
+in vec3 frag_3d_position;
 
 out vec4 out_color;
 
 uniform sampler2D panorama_texture;
-uniform mat3 ray_matrix;
+uniform vec3 panorama_position;
 
 const float PI = 3.1415926535897932384626433832795;
 
 float to_yaw(vec3 pnt)
 {
-    float yaw = atan(pnt.z, pnt.x) / PI;
-
-    return yaw;
+    return 2 * atan(pnt.z, pnt.x) / PI + 2;
 }
 
 float to_coord2(float y, float x)
 {
     return y/x;
-    float ret = atan(y, x) / PI;
+    float ret = 2 * atan(y, x) / PI;
     return ret;
 }
 
 vec2 project_to_panorama(vec3 point_in_world)
 {
+    point_in_world -= panorama_position;
     float horizontal = length(point_in_world.xz);
     
     return vec2(
-        to_yaw(point_in_world) * 0.5 + 0.5,
-        to_coord2(point_in_world.y, horizontal) * 0.5 + 0.5
+        to_yaw(point_in_world) / 4,
+        to_coord2(point_in_world.y, horizontal) / 2 + 0.5
     );
 }
 
 void main(void)
 {
-    //out_color = texture(panorama_texture, frag_coord);
-
-    vec3 ray = ray_matrix * vec3(frag_coord, 1);
-    ray /= length(ray);
-
-    vec2 tex_coord = project_to_panorama(ray);
-
-    out_color = texture(panorama_texture, tex_coord);
+    vec2 panorama_coord = project_to_panorama(frag_3d_position);
+    out_color = texture(panorama_texture, panorama_coord);
 }

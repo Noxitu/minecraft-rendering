@@ -77,11 +77,11 @@ def create_vao(array):
     return vbo, vao, len(array)
 
 
-def create_program(name, **defines):
+def create_program(name, *, gs=True, **defines):
     return noxitu.opengl.Program(
         vs=f'{name}.vert.glsl',
         fs=f'{name}.frag.glsl',
-        gs=f'{name}.geom.glsl',
+        gs=f'{name}.geom.glsl' if gs else None,
         root=__file__,
         defines=defines
     )
@@ -106,9 +106,10 @@ def main():
     panorama_framebuffer, panorama_texture = noxitu.opengl.create_texture_framebuffer(PANORAMA_WIDTH, PANORAMA_HEIGHT)
     default_framebuffer = 0
 
-    panoramabox_program = create_program('render_panorama_box')
+    panoramabox_program = create_program('render_panorama_box', gs=False)
     panorama_renderer_program = create_program('play2', PROJECTION_FUNC='project_to_panorama')
     program = create_program('play2')
+
     actual_attribute_locations = [program.attribute(attr) for attr in 'in_position in_direction in_color'.split()]
     assert actual_attribute_locations == [0, 1, 2], f'Invalid attribute locations: {actual_attribute_locations}.'
 
@@ -124,8 +125,20 @@ def main():
 
     redraw_panorama = True
 
+    def experiment1():
+        return False
+        return state.experimental
+
+    def experiment2():
+        # return True
+        # return False
+        return state.experimental
+
     while True:
-        pygame.display.set_caption(f'FPS = {clock.get_fps():.01f}')
+        pygame.display.set_caption(f'FPS = {clock.get_fps():.01f}    '
+                                   f'@ ({", ".join(f"{c:.01f}" for c in state.camera_position)})    '
+                                   f'FoV = {state.fov}    '
+                                   f'view distance = {state.view_distance}    ')
 
         handle_events(state)
 
@@ -139,20 +152,28 @@ def main():
 
             projectionview_matrix = camera_matrix @ rotation_matrix @ location_matrix
 
-            if state.experimental or True:
-                # redraw_panorama = False
+            if experiment2():
+                redraw_panorama = True
+
+            if redraw_panorama:
+                redraw_panorama = False
+
+                state.panorama_position = state.camera_position.copy()
+                low_x, low_z = (camera_chunk - state.view_distance) * 256
+                high_x, high_z = (camera_chunk + state.view_distance + 1) * 256
+                state.panorama_coords = low_x, low_z, high_x, high_z
 
                 panorama_renderer_program.use()
 
-                glUniform3f(panorama_renderer_program.uniform('camera_position'), *state.camera_position)
+                glUniform3f(panorama_renderer_program.uniform('camera_position'), *state.panorama_position)
                 glUniform3f(panorama_renderer_program.uniform('sun_direction'), *state.sun_direction)
-
 
                 glBindFramebuffer(GL_FRAMEBUFFER, panorama_framebuffer)
                 glViewport(0, 0, PANORAMA_WIDTH, PANORAMA_HEIGHT)
 
-                # glBindFramebuffer(GL_FRAMEBUFFER, default_framebuffer)
-                # glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+                if experiment1():
+                    glBindFramebuffer(GL_FRAMEBUFFER, default_framebuffer)
+                    glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
 
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
                 glEnable(GL_DEPTH_TEST)
@@ -163,12 +184,13 @@ def main():
                         glBindVertexArray(vao)
                         glDrawArrays(GL_POINTS, 0, n_blocks)
 
-            if not state.experimental or True:
+            if not experiment1():
                 glBindFramebuffer(GL_FRAMEBUFFER, default_framebuffer)
                 glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
 
                 panoramabox_program.use()
-                panoramabox_program.set_uniform_mat3('ray_matrix', np.linalg.inv(projectionview_matrix[:3, :3]))
+                panoramabox_program.set_uniform_mat4('projectionview_matrix', projectionview_matrix)
+                glUniform3f(panoramabox_program.uniform('panorama_position'), *state.panorama_position)
 
                 glActiveTexture(GL_TEXTURE0)
                 glBindTexture(GL_TEXTURE_2D, panorama_texture)
@@ -177,13 +199,27 @@ def main():
                 glEnable(GL_DEPTH_TEST)
                 glEnable(GL_CULL_FACE)
 
-                glBegin(GL_POINTS)
-                glVertex2f(0, 0)
+                low_x, low_z, high_x, high_z = state.panorama_coords
+
+                print(low_x, low_z, high_x, high_z)
+
+                glBegin(GL_TRIANGLE_STRIP)
+                glVertex3f(low_x, 256, low_z)
+                glVertex3f(low_x, 0, low_z)
+                glVertex3f(high_x, 256, low_z)
+                glVertex3f(high_x, 0, low_z)
+
+                glVertex3f(high_x, 256, high_z)
+                glVertex3f(high_x, 0, high_z)
+
+                glVertex3f(low_x, 256, high_z)
+                glVertex3f(low_x, 0, high_z)
+
+                glVertex3f(low_x, 256, low_z)
+                glVertex3f(low_x, 0, low_z)
                 glEnd()
 
                 program.use()
-
-                projectionview_matrix = camera_matrix @ rotation_matrix @ location_matrix
 
                 program.set_uniform_mat4('projectionview_matrix', projectionview_matrix)
                 glUniform3f(program.uniform('sun_direction'), *state.sun_direction)

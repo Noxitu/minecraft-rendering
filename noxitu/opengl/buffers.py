@@ -39,3 +39,8 @@ def read_pixels(width, height):
     buffer = np.frombuffer(buffer, np.uint8)
     buffer = buffer.reshape(height, width, 3)[::-1]
     return buffer
+
+
+def read_texture(width, height):
+    buffer = glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE)
+    return np.frombuffer(buffer, dtype=np.uint8).reshape(height, width, 3)[::-1]
