@@ -72,8 +72,8 @@ def main():
     LOGGER.info('Reading viewport...')
     viewport = io.load_viewport()
 
-    LOGGER.info('Limiting world size...')
-    offset, world = reduce_size(offset, world, viewport['position'], viewport['rotation'][:3, :3])
+    # LOGGER.info('Limiting world size...')
+    # offset, world = reduce_size(offset, world, viewport['position'], viewport['rotation'][:3, :3])
 
     LOGGER.info('Computing rays...')
     rays = noxitu.minecraft.raycaster.rays.create_camera_rays(

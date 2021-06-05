@@ -1,5 +1,6 @@
 #include "core.hpp"
-#include "raycast_amp.hpp"
+// #include "raycast_amp.hpp"
+#include "raycast_cpu.hpp"
 #include <iostream>
 
 #define ARRAY_ARG_SIGNATURE(name) void *name ## _ptr, int name ## _dims, long long *name ## _shape, long long *name ## _strides
