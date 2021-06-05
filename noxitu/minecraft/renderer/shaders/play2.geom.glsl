@@ -1,10 +1,22 @@
 #version 330 core
 
-#define PROJECTION_FUNC project_from_camera
-// #define PROJECTION_FUNC project_to_panorama
+#define PROJECTION_MODE_CAMERA 0
+#define PROJECTION_MODE_PANORAMA 1
+
+#define PROJECTION_MODE PROJECTION_MODE_CAMERA
+
+#if PROJECTION_MODE == PROJECTION_MODE_CAMERA
+    #define PROJECTION_FUNC project_from_camera
+    #define MAX_VERTICES 4
+#endif
+
+#if PROJECTION_MODE == PROJECTION_MODE_PANORAMA
+    #define PROJECTION_FUNC project_to_panorama
+    #define MAX_VERTICES 8
+#endif
 
 layout (points) in;
-layout (triangle_strip, max_vertices = 4) out;
+layout (triangle_strip, max_vertices = MAX_VERTICES) out;
 
 in uint block_direction[];
 in vec3 block_color[];
@@ -44,9 +56,7 @@ float to_yaw(vec3 pnt, float primary_yaw)
 
 float to_coord2(float y, float x)
 {
-    return y/x;
-    float ret = 2 * atan(y, x) / PI;
-    return ret;
+    return 0.5 * y/x;
 }
 
 vec4 project_to_panorama(vec3 point_in_world, float primary_yaw)
@@ -112,4 +122,38 @@ void main() {
     EmitVertex();
     
     EndPrimitive();
+
+#if PROJECTION_MODE == PROJECTION_MODE_PANORAMA
+    bool next_quad = false;
+
+    const float BORDER_THRESHOLD = 0.01;
+
+    if (primary_yaw < BORDER_THRESHOLD)
+    {
+        primary_yaw += 4;
+        next_quad = true;
+    }
+    else if (primary_yaw > 4 - BORDER_THRESHOLD)
+    {
+        primary_yaw -= 4;
+        next_quad = true;
+    }
+
+    if (next_quad)
+    {
+        gl_Position = to_opengl(PROJECTION_FUNC(block_position + p1, primary_yaw));
+        EmitVertex();
+
+        gl_Position = to_opengl(PROJECTION_FUNC(block_position + p2, primary_yaw));
+        EmitVertex();
+
+        gl_Position = to_opengl(PROJECTION_FUNC(block_position + p3, primary_yaw));
+        EmitVertex();
+
+        gl_Position = to_opengl(PROJECTION_FUNC(block_position + p4, primary_yaw));
+        EmitVertex();
+        
+        EndPrimitive();
+    }
+#endif
 }  

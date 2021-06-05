@@ -16,9 +16,7 @@ float to_yaw(vec3 pnt)
 
 float to_coord2(float y, float x)
 {
-    return y/x;
-    float ret = 2 * atan(y, x) / PI;
-    return ret;
+    return 0.5 * y/x;
 }
 
 vec2 project_to_panorama(vec3 point_in_world)
@@ -36,4 +34,9 @@ void main(void)
 {
     vec2 panorama_coord = project_to_panorama(frag_3d_position);
     out_color = texture(panorama_texture, panorama_coord);
+
+    // Make "panoramabox" visible due to different bg color:
+#define BOX_VISIBILITY_FACTOR 0.0
+
+    out_color.xyz = (1-BOX_VISIBILITY_FACTOR) * out_color.xyz + BOX_VISIBILITY_FACTOR * vec3(1, 1, 1);
 }

@@ -16,7 +16,7 @@ def _create_shader(shader_source, shader_type, root=None, defines={}):
             shader_source = fd.read()
 
         for key, value in defines.items():
-            shader_source = shader_source.replace(f'#define {key}', f'#define {key} {value} //')
+            shader_source = shader_source.replace(f'#define {key} ', f'#define {key} {value} // ')
 
     try:
         shader = glCreateShader(shader_type)

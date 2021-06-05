@@ -12,7 +12,8 @@ vec4 project_from_camera(vec3 point_in_world)
 
 vec4 to_opengl(vec4 pnt)
 {
-    float depth = pnt.z / 5000 - 1;
+    //float depth = pnt.z / 5000 - 1;
+    float depth = 9000 / 5000 - 1;
     return vec4(pnt.x, -pnt.y, depth * pnt.w, pnt.w);
 }
 
