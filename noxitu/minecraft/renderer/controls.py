@@ -127,7 +127,7 @@ def save_viewport(state):
     import matplotlib.pyplot as plt
 
     image = noxitu.opengl.read_pixels(*state.screen_size)
-    plt.imsave('data/viewports/viewport.png', image)
+    plt.imsave('data/viewports/viewport-rendering.png', image)
 
     LOGGER.info('Saved viewport.png')
 

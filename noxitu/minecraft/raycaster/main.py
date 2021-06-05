@@ -1,6 +1,5 @@
 import logging
 import numpy as np
-from numpy.linalg.linalg import norm
 
 from noxitu.minecraft.raycaster.core import chain_masks, raycast, normalize_factors, pyplot
 import noxitu.minecraft.raycaster.rays
@@ -16,9 +15,9 @@ GLOBAL_COLORS_MASK = np.array([c is not None for c in GLOBAL_COLORS])
 GLOBAL_COLORS = np.array([c if c is not None else [0, 0, 0] for c in GLOBAL_COLORS], dtype=np.uint8)
 IS_WATER = np.array([MATERIALS.get(name) == 'water' for name in GLOBAL_PALETTE])
 
-render_height, render_width = 300, 400
+# render_height, render_width = 360, 640
 # render_height, render_width = 720, 1280
-# render_height, render_width = 1080, 1920
+render_height, render_width = 1080, 1920
 # render_height, render_width = 1080*2, 1920*2
 
 WATER_SURFACE_DIFFUSION_FACTOR = 0.5
@@ -51,7 +50,13 @@ def reduce_size(offset, world, camera_position, camera_rotation=None):
     x0 = max(0, x0)
     z0 = max(0, z0)
     offset = offset + [x0, 0, z0]
-    world = world[new_height, z0:z0+new_size, x0:x0+new_size].copy()
+    world = world[new_height, z0:z0+new_size, x0:x0+new_size]
+    
+    if world.shape[2] % 32 != 0:
+        remove = world.shape[2] % 32
+        world = world[..., :-remove]
+    
+    world = world.copy()
 
     size = np.prod(world.shape, dtype=float)*2/1024/1024/1024
     LOGGER.info('  reduced to shape %s and size %.02f GB', world.shape, size)
@@ -68,7 +73,7 @@ def main():
     viewport = io.load_viewport()
 
     LOGGER.info('Limiting world size...')
-    offset, world = reduce_size(offset, world, viewport['position'], viewport['rotation'])
+    offset, world = reduce_size(offset, world, viewport['position'], viewport['rotation'][:3, :3])
 
     LOGGER.info('Computing rays...')
     rays = noxitu.minecraft.raycaster.rays.create_camera_rays(
@@ -115,7 +120,7 @@ def main():
         if compute_underwater or compute_water_reflections:
             water_mask = IS_WATER[ids]
 
-            # Schlick's approximation of Fresnel factor:
+            # Schlick's approximation of Fresnel formula:
             R0 = ((1.0 - 1.33) / (1.0 + 1.33)) ** 2
             cosine = rays[water_mask, 3:].dot([0, -1, 0])
             reflectance = R0 + (1-R0) * np.power(1 - cosine, 5)
@@ -179,7 +184,7 @@ def main():
 
     LOGGER.info('Displaying...')
     import matplotlib.pyplot as plt
-    plt.imsave('data/viewports/p1.raycasting.png', colors)
+    plt.imsave('data/viewports/raycasting.png', colors)
     pyplot(
         colors,
     )

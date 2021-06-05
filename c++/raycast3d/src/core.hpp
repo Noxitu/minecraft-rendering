@@ -5,6 +5,24 @@ struct Array
 {
     Type *data;
     std::array<int, DIMS> shape;
+
+    Type &operator()(long long i)
+    {
+        static_assert(DIMS == 1, "1-d array requires 1-d index.");
+        return data[i];
+    }
+
+    Type &operator()(long long i, long long j)
+    {
+        static_assert(DIMS == 2, "2-d array requires 2-d index.");
+        return data[i*shape[1] + j];
+    }
+
+    Type &operator()(long long i, long long j, long long k)
+    {
+        static_assert(DIMS == 3, "3-d array requires 3-d index.");
+        return data[i*shape[1]*shape[2] + j*shape[2] + k];
+    }
 };
 
 template<typename Type>

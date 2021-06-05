@@ -25,10 +25,10 @@ def load_world():
     # offset[0] += 30
     size = np.prod(world.shape, dtype=float)*2/1024/1024/1024
     print(world.shape, ' = ', size, 'GB')
-    # assert size < 2.0
 
     return offset[[2, 0, 1]], world
 
+# load_world()
 
 def load_viewport():
     # return np.load('data/viewports/viewport.npz')

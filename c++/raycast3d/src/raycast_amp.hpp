@@ -6,7 +6,7 @@ namespace detail
 {
     namespace amp = concurrency;
 
-    const int OUTER_ITERATIONS = 64;
+    const int OUTER_ITERATIONS = 256;
     const int INNER_ITERATIONS = 128;
     const int RAYS_PER_CALL = 500'000;
 
@@ -23,10 +23,22 @@ namespace detail
         return (value >> (x%2*16)) & 0xffff;
     }
 
+    inline unsigned int query_world_plane(const concurrency::array_view<const unsigned int, 2> &buffer, int z, int x) restrict(amp)
+    {
+        const unsigned int value = buffer(z, x/2);
+        return (value >> (x%2*16)) & 0xffff;
+    }
+
     inline unsigned int query_block_mask(const concurrency::array_view<const unsigned int, 1> &buffer, int i) restrict(amp)
     {
         const unsigned int value = buffer(i/4);
         return (value >> (i%4*8)) & 0xff;
+    }
+
+    inline unsigned int query_packed_world_mask(const amp::array<unsigned int, 3> &packed_world_mask, int y, int z, int x) restrict(amp)
+    {
+        const unsigned int value = packed_world_mask(y, z, x/32);
+        return (value >> (x%32)) & 0x1;
     }
 
     inline double next_intersection(int c, double c0, double dir_inv) restrict(amp)
@@ -40,11 +52,11 @@ namespace detail
         return INFINITY;
     }
 
-    inline int advance(int &x, int &y, int &z,
+    inline bool advance(int &x, int &y, int &z,
                         const double x0, const double y0, const double z0,
                         const double rx_inv, const double ry_inv, const double rz_inv,
                         const int size_x, const int size_y, const int size_z,
-                        const concurrency::array_view<const unsigned int, 3> &world,
+                        amp::array<unsigned int, 3> &packed_world_mask,
                         double &depth,
                         int &normal_idx
     ) restrict(amp)
@@ -75,17 +87,70 @@ namespace detail
         const bool inside = (x >= 0 && y >= 0 && z >= 0 && x < size_x && y < size_y && z < size_z);
 
         if (inside)
-            return query_world(world, y, z, x);
+            return query_packed_world_mask(packed_world_mask, y, z, x);
         
-        return -1;
+        return false;
     }
+
+    auto pack_world = [](auto &world_, auto &block_mask_) -> amp::array<unsigned int, 3>
+    {
+        const int size_y = world_.shape[0];
+        const int size_z = world_.shape[1];
+        const int size_x = world_.shape[2];
+
+        const int packed_size_x = (size_x+31) / 32;
+
+        amp::array<unsigned int, 3> packed_world_mask(size_y, size_z, packed_size_x);
+
+        amp::extent<2> extent(size_z, packed_size_x);
+
+        amp::array_view<const unsigned int, 1> block_mask(
+            block_mask_.shape[0] / 4,
+            reinterpret_cast<unsigned int*>(block_mask_.data)
+        );
+
+        for (int y = 0; y < size_y; ++y)
+        {
+            amp::array_view<const unsigned int, 2> world(
+                size_z,
+                size_x / 2,
+                reinterpret_cast<unsigned int*>(world_.data + 1LL * y * size_z * size_x)
+            );
+
+            amp::parallel_for_each(
+                extent,
+                [=, &packed_world_mask](amp::index<2> idx) restrict(amp)
+                {
+                    const int z = idx[0];
+                    const int packed_x = idx[1];
+                    const int world_x = packed_x * 32;
+                    const int steps = min(32, size_x-world_x);
+
+                    unsigned int value = 0;
+
+                    for (int dx = 0; dx < steps; ++dx)
+                    {
+                        if (world_x+dx >= size_x)
+                            break;
+
+                        const unsigned int block_id = query_world_plane(world, z, world_x+dx);
+                        const unsigned int ok = query_block_mask(block_mask, block_id) ? 1 : 0;
+
+                        value |= (ok << (dx));
+                    }
+
+                    packed_world_mask(y, z, packed_x) = value;
+                }
+            );
+        }
+        return packed_world_mask;
+    };
 
     void invoke_raycasting(
         const amp::extent<1> &batch, const int offset,
         int size_x, int size_y, int size_z,
         amp::array_view<const double, 2> &rays,
-        amp::array_view<const unsigned int, 3> world,
-        amp::array_view<const unsigned int, 1> block_mask,
+        amp::array<unsigned int, 3> &packed_world_mask,
         amp::array_view<int, 1> result,
         amp::array_view<double, 1> result_depth,
         amp::array_view<int, 2> state
@@ -93,7 +158,7 @@ namespace detail
     {
         amp::parallel_for_each(
             batch,
-            [=](amp::index<1> idx) restrict(amp)
+            [=, &packed_world_mask](amp::index<1> idx) restrict(amp)
             {
                 const int i = idx[0] + offset;
 
@@ -123,12 +188,12 @@ namespace detail
                 {
                     double depth;
                     int normal_idx = 0;
-                    const int block_id = advance(x, y, z, x0, y0, z0, rx_inv, ry_inv, rz_inv, size_x, size_y, size_z, world, depth, normal_idx);
+                    const bool stop = advance(x, y, z, x0, y0, z0, rx_inv, ry_inv, rz_inv, size_x, size_y, size_z, packed_world_mask, depth, normal_idx);
 
-                    if (block_id != -1 && query_block_mask(block_mask, block_id))
+                    if (stop)
                     {
                         result(i) = 
-                            block_id & 0xffff |
+                            //block_id & 0xffff |
                             (normal_idx << 16) & 0x70000;
 
                         result_depth(i) = depth;
@@ -172,21 +237,9 @@ namespace noxitu { namespace minecraft
             throw std::logic_error("raycast: require world.shape[2] divisible by 2");
 
         if (block_mask_.shape[0] % 4 != 0)
-            throw std::logic_error("raycast: require block_mask.shape[0] divisible by 2");
+            throw std::logic_error("raycast: require block_mask.shape[0] divisible by 4");
 
         amp::array_view<const double, 2> rays(n_rays, ray_elements, rays_.data);
-
-        amp::array_view<const unsigned int, 3> world(
-            size_y,
-            size_z,
-            size_x / 2,
-            reinterpret_cast<unsigned int*>(world_.data)
-        );
-
-        amp::array_view<const unsigned int, 1> block_mask(
-            block_mask_.shape[0] / 4,
-            reinterpret_cast<unsigned int*>(block_mask_.data)
-        );
 
         amp::array_view<int, 1> result(n_rays, result_.data);
         amp::array_view<double, 1> result_depth(n_rays, result_depth_.data);
@@ -202,6 +255,20 @@ namespace noxitu { namespace minecraft
             state(i,3) = STATE_NORMAL;
         }
 
+        auto zero = std::chrono::high_resolution_clock::now();
+
+        auto ts = [zero]
+        {
+            auto now = std::chrono::high_resolution_clock::now();
+            return std::chrono::duration_cast<std::chrono::milliseconds>(now-zero).count();
+        };
+
+        if (LOG) std::cout << ts() << "ms -- " << "Packing world..." << std::endl;
+
+        amp::array<unsigned int, 3> packed_world_mask = pack_world(world_, block_mask_);
+
+        if (LOG) std::cout << ts() << "ms -- " << "Running raycasting..." << std::endl;
+
         for (int outer_iter = 0; outer_iter < OUTER_ITERATIONS; ++outer_iter)
         {
             for (int offset = 0; offset < n_rays; offset += RAYS_PER_CALL)
@@ -213,13 +280,33 @@ namespace noxitu { namespace minecraft
                     batch, offset,
                     size_x, size_y, size_z,
                     rays,
-                    world,
-                    block_mask,
+                    packed_world_mask,
                     result,
                     result_depth,
                     state
                 );
             }
         }
+
+        if (LOG) std::cout << ts() << "ms -- " << "Raycasting done." << std::endl;
+
+        state.synchronize();
+        result.synchronize();
+
+        for (int i = 0; i < n_rays; ++i)
+        {
+            if (state(i, 3) == STATE_HIT)
+            {
+                const int x = state(i, 0);
+                const int y = state(i, 1);
+                const int z = state(i, 2);
+
+                const unsigned short block_id = world_(y, z, x);
+
+                result(i) |= block_id;
+            }
+        }
+
+        if (LOG) std::cout << ts() << "ms -- " << "Block IDs stored in result." << std::endl;
     };
 }}
