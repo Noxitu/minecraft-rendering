@@ -131,9 +131,6 @@ void main() {
 
     const AdvanceData advance_data = compute_advance_data(ray);
 
-    uint final_id = -1;
-    double final_depth = -1;
-
     for (int iter = 0; iter < 500; ++iter)
     {
         double depth;
@@ -149,9 +146,10 @@ void main() {
 
             if (block_mask[block_id] != 0)
             {
-                final_id = block_id;
-                status = 1;
-                final_depth = depth;
+                state[index].status = 1;
+                state[index].block_id = int(block_id);
+                state[index].normal_idx = normal_idx;
+                ray_depths[index] = float(depth);
                 break;
             }
         }
@@ -160,8 +158,4 @@ void main() {
     state[index].x = p.x;
     state[index].y = p.y;
     state[index].z = p.z;
-    state[index].status = status;
-    state[index].block_id = int(final_id);
-
-    ray_depths[index] = float(final_depth);
 } 
