@@ -1,7 +1,8 @@
 import logging
 import numpy as np
 
-from noxitu.minecraft.raycaster.core import chain_masks, raycast, normalize_factors, pyplot
+from noxitu.minecraft.raycaster.core import chain_masks, raycast as raycast_cpp, normalize_factors, pyplot
+from noxitu.minecraft.raycaster.opengl_raycaster import Raycaster
 import noxitu.minecraft.raycaster.rays
 import noxitu.minecraft.raycaster.io as io
 
@@ -17,12 +18,16 @@ IS_WATER = np.array([MATERIALS.get(name) == 'water' for name in GLOBAL_PALETTE])
 
 # render_height, render_width = 360, 640
 # render_height, render_width = 720, 1280
-render_height, render_width = 1080, 1920
+# render_height, render_width = 1080, 1920
 # render_height, render_width = 1080*2, 1920*2
+
+RENDER_SHAPE = 1080, 1920
 
 WATER_SURFACE_DIFFUSION_FACTOR = 0.5
 WATER_DEPTH_DIFFUSION_FACTOR = 0.94
 AMBIENT_FACTOR, DIFFUSE_FACTOR = normalize_factors(0.5, 0.5)
+
+USE_OPENGL = False
 
 
 NORMALS_IDX = np.array([
@@ -36,6 +41,15 @@ NORMALS_IDX = np.array([
 SUN_DIRECTION = np.array([1, 3, -3], dtype=float)
 SUN_DIRECTION /= np.linalg.norm(SUN_DIRECTION)
 
+
+def create_camera_rays(render_shape, viewport, offset):
+    return noxitu.minecraft.raycaster.rays.create_camera_rays(
+        position=viewport['position'],
+        rotation=viewport['rotation'][:3, :3],
+        camera=viewport['camera'][:3, :3],
+        resolution=render_shape,
+        offset=offset
+    )
 
 def reduce_size(offset, world, camera_position, camera_rotation=None):
     new_size = 1400
@@ -72,26 +86,31 @@ def main():
     LOGGER.info('Reading viewport...')
     viewport = io.load_viewport()
 
-    # LOGGER.info('Limiting world size...')
-    # offset, world = reduce_size(offset, world, viewport['position'], viewport['rotation'][:3, :3])
+    LOGGER.info('Limiting world size...')
+    offset, world = reduce_size(offset, world, viewport['position'], viewport['rotation'][:3, :3])
 
     LOGGER.info('Computing rays...')
-    rays = noxitu.minecraft.raycaster.rays.create_camera_rays(
-        position=viewport['position'],
-        rotation=viewport['rotation'][:3, :3],
-        camera=viewport['camera'][:3, :3],
-        resolution=(render_height, render_width),
-        offset=offset
-    )
+    rays = create_camera_rays(RENDER_SHAPE, viewport, offset)
+
+    raycast = raycast_cpp
+    primary_block_mask = GLOBAL_COLORS_MASK
+    block_mask_without_water = GLOBAL_COLORS_MASK & ~IS_WATER
+
+    if USE_OPENGL:
+        LOGGER.info('Initializing OpenGL raycaster')
+        raycaster = Raycaster(world=world)
+        primary_block_mask = raycaster.set_mask('primary_block_mask', primary_block_mask)
+        block_mask_without_water = raycaster.set_mask('block_mask_without_water', block_mask_without_water)
+        raycast = raycaster.raycast
 
     def do_raycast_shadows(rays):
         n_rays = np.prod(rays.shape[::-1])
         LOGGER.info(f'Raycasting {n_rays:,} rays to find shadows...', )
-        ids, _, _ = raycast(rays, world, GLOBAL_COLORS_MASK & ~IS_WATER)
+        ids, _, _ = raycast(rays, world, block_mask_without_water)
         return (ids != 0)
 
     def do_raycast(rays, *,
-                   block_mask=GLOBAL_COLORS_MASK,
+                   block_mask=primary_block_mask,
                    sun_direction=SUN_DIRECTION,
                    compute_shadows=True,
                    compute_water_reflections=True,
@@ -143,7 +162,7 @@ def main():
 
                 underwater_rays = noxitu.minecraft.raycaster.rays.compute_shadow_rays(rays[water_mask], depths[water_mask], underwater_rays)
                 _, underwater_depths, _, underwater_colors = do_raycast(underwater_rays,
-                                                        block_mask=GLOBAL_COLORS_MASK & ~IS_WATER,
+                                                        block_mask=block_mask_without_water,
                                                         compute_shadows=True,
                                                         compute_underwater=False,
                                                         compute_water_reflections=False)
@@ -167,7 +186,7 @@ def main():
                                                                                             rays[water_mask, 3:] * [1, -1, 1])
 
                 reflected_ids, _, _, water_reflection_colors = do_raycast(water_reflection_rays,
-                                                                        block_mask=GLOBAL_COLORS_MASK,
+                                                                        block_mask=primary_block_mask,
                                                                         compute_shadows=False,
                                                                         compute_underwater=False,
                                                                         compute_water_reflections=False)
