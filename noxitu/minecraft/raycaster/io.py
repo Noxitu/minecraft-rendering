@@ -5,7 +5,7 @@ import noxitu.minecraft.map.load
 
 
 def load_world():
-    if True:
+    if False:
         RADIUS = 15
 
         offset, world = noxitu.minecraft.map.load.load(
@@ -20,7 +20,8 @@ def load_world():
             np.savez('data/tmp.npz', offset=offset, world=world)
 
     else:
-        fd = np.load('data/tmp.npz')
+        # fd = np.load('data/tmp.npz')
+        fd = np.load('data/tmp-goat.npz')
         offset, world = fd['offset'], fd['world']
 
     # _, _, x = -offset + [0, 0, 1000]
@@ -38,7 +39,11 @@ def load_world():
 
 def load_viewport():
     # return np.load('data/viewports/viewport.npz')
-    return np.load('data/viewports/p1.npz')
+    # return np.load('data/viewports/p1.npz')
     # return np.load('data/viewports/p2.npz')
     # return np.load('data/viewports/viewport-grian2goat.npz')
-    # return np.load('data/viewports/viewport-goat.npz')
+    return np.load('data/viewports/viewport-goat.npz')
+
+def load_texture_atlas():
+    fd = np.load('data/texture_atlas.npz')
+    return fd['texture_atlas'], fd['texture_mapping']

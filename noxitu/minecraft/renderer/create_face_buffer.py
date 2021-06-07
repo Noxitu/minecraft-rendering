@@ -2,7 +2,7 @@ import numpy as np
 from tqdm import tqdm
 
 import noxitu.minecraft.map.load
-from noxitu.minecraft.renderer.world_faces import compute_face_mask, compute_face_colors, compute_faces
+from noxitu.minecraft.renderer.world_faces import compute_face_mask, compute_face_colors, compute_face_ids, compute_faces
 from noxitu.minecraft.map.global_palette import GLOBAL_PALETTE, MATERIALS, MATERIAL_COLORS
 
 GLOBAL_COLORS = [MATERIAL_COLORS.get(MATERIALS.get(name)) for name in GLOBAL_PALETTE]
@@ -13,7 +13,10 @@ GLOBAL_COLORS = np.array([c if c is not None else [0, 0, 0] for c in GLOBAL_COLO
 def main():
     print('Loading world...')
 
+    texture_mapping = np.load('data/texture_atlas.npz')['texture_mapping']
+
     S = 4000
+    # S = 40
 
     offset, world = noxitu.minecraft.map.load.load('data/chunks',
                                                    tqdm=tqdm,
@@ -28,6 +31,7 @@ def main():
     print('Computing faces...')
     n_faces, face_coords = compute_face_mask(world)
     face_colors = compute_face_colors(face_coords, world, GLOBAL_COLORS)
+    face_ids = compute_face_ids(face_coords, world)
     world = None
 
     if False:
@@ -56,7 +60,8 @@ def main():
 
         n = len(face_directions)
 
-        buffer = np.zeros((n,), dtype=[('position', '3int16'), ('direction', 'uint8'), ('color', '3uint8')])
+        buffer = np.zeros((n,), dtype=[('position', '3int16'), ('direction', 'uint8'), ('color', '3uint8'), ('texture_id', 'int16')])
+
         buffer['direction'] = face_directions + 1
         
         for i in range(6):
@@ -65,6 +70,7 @@ def main():
             buffer['position'][face_directions==i, 1] = ys
             buffer['position'][face_directions==i, 2] = zs
             buffer['color'][face_directions==i] = face_colors[i]
+            buffer['texture_id'][face_directions==i] = texture_mapping[face_ids[i], i]
 
         buffer['position'] += offset
 

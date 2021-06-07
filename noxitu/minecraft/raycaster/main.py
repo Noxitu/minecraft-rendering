@@ -29,13 +29,24 @@ AMBIENT_FACTOR, DIFFUSE_FACTOR = normalize_factors(0.5, 0.5)
 
 USE_OPENGL = True
 
-
 NORMALS_IDX = np.array([
     0, 0, 0,
     -1, 0, 0, 1, 0, 0,
     0, -1, 0, 0, 1, 0,
     0, 0, -1, 0, 0, 1
 ], dtype=float).reshape(7, 3)
+
+FACE_UVS = np.array([
+    0, 0,
+    3, -2, -3, -2,
+    1, -3, 1, 3,
+    -1, -2, 1, -2,
+])
+
+FACE_UVS = np.array([
+    [(1 if c > 0 else -1) if abs(c) == i else 0 for i in range(1, 4)] + [1 if c < 0 else 0]
+    for c in FACE_UVS
+], dtype=float).reshape(7, 2, 4)
 
 # SUN_DIRECTION = np.array([-0.5735764363510462, 0.8191520442889919, 0])
 SUN_DIRECTION = np.array([1, 3, -3], dtype=float)
@@ -80,14 +91,20 @@ def reduce_size(offset, world, camera_position, camera_rotation=None):
 
 
 def main():
+    texture_atlas = texture_mapping = None
+
     LOGGER.info('Loading world...')
     offset, world = io.load_world()
 
     LOGGER.info('Reading viewport...')
     viewport = io.load_viewport()
 
+    LOGGER.info('Loading textures...')
+    texture_atlas, texture_mapping = io.load_texture_atlas()
+
     LOGGER.info('Limiting world size...')
     offset, world = reduce_size(offset, world, viewport['position'], viewport['rotation'][:3, :3])
+    # np.savez('data/tmp-goat.npz', offset=offset[[1, 2, 0]], world=world)
 
     LOGGER.info('Computing rays...')
     rays = create_camera_rays(RENDER_SHAPE, viewport, offset)
@@ -119,14 +136,29 @@ def main():
         LOGGER.info(f'Raycasting {n_rays:,} rays...')
         ids, depths, normal_idx = raycast(rays, world, block_mask)
         colors = GLOBAL_COLORS[ids]
+        hit_mask = (ids != 0)
+
+        if texture_mapping is not None:
+            hit_ids = ids[hit_mask]
+            hit_normal_idx = normal_idx[hit_mask]
+            hit_rays = rays[hit_mask]
+            hit_depths = depths[hit_mask]
+
+            texture_idx = texture_mapping[hit_ids, hit_normal_idx-1]
+            texture_mask = (texture_idx != -1)
+
+            offsets3d = (hit_rays[:, :3] + hit_rays[:, 3:] * hit_depths[:, np.newaxis]) % 1
+            face_uvs = FACE_UVS[hit_normal_idx]  
+            offsets2d = np.einsum('nji,ni->nj', face_uvs[..., :3], offsets3d) + face_uvs[..., 3]
+            offsets2d = np.clip((16*offsets2d).astype(np.uint8), 0, 15)
+
+            colors[chain_masks(hit_mask, texture_mask)] = texture_atlas[texture_idx, offsets2d[:, 1], offsets2d[:, 0], :3][texture_mask]
 
         diffuse_factors = noxitu.minecraft.raycaster.rays.compute_diffuse_factors(NORMALS_IDX,
                                                                                   sun_direction,
                                                                                   indices=normal_idx)
 
         if compute_shadows:
-            hit_mask = (ids != 0)
-
             LOGGER.info('Computing shadow rays...')
             shadow_rays = noxitu.minecraft.raycaster.rays.compute_shadow_rays(rays[hit_mask], depths[hit_mask], sun_direction)
             shadow_mask = do_raycast_shadows(shadow_rays)

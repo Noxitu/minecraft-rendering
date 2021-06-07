@@ -20,7 +20,12 @@ layout (triangle_strip, max_vertices = MAX_VERTICES) out;
 
 in uint block_direction[];
 in vec3 block_color[];
+in int block_texture_idx[];
+
 out vec3 vertex_color;
+out float vertex_lighting;
+out vec2 texture_coordinates;
+flat out int texture_idx;
 
 uniform mat4 projectionview_matrix;
 uniform vec3 sun_direction;
@@ -30,6 +35,7 @@ const float DIFFUSE_FACTOR = 0.4;
 const float AMBIENT_FACTOR = 1.0 - DIFFUSE_FACTOR;
 
 const float PI = 3.1415926535897932384626433832795;
+
 
 vec4 project_from_camera(vec3 point_in_world, float _unused)
 {
@@ -78,6 +84,58 @@ vec4 to_opengl(vec4 pnt)
     return vec4(pnt.x, -pnt.y, depth * pnt.w, pnt.w);
 }
 
+vec3 get_p1(int direction)
+{
+    switch(direction)
+    {
+        case 1: return vec3(0, 1, 0);
+        case 2: return vec3(1, 1, 1);
+        case 3: return vec3(0, 0, 1);
+        case 4: return vec3(0, 1, 0);
+        case 5: return vec3(1, 1, 0);
+        case 6: return vec3(0, 1, 1);
+    }
+}
+
+vec3 get_p2(int direction)
+{
+    switch(direction)
+    {
+        case 1: return vec3(0, 0, 0);
+        case 2: return vec3(1, 0, 1);
+        case 3: return vec3(0, 0, 0);
+        case 4: return vec3(0, 1, 1);
+        case 5: return vec3(1, 0, 0);
+        case 6: return vec3(0, 0, 1);
+    }
+}
+
+vec3 get_p3(int direction)
+{
+    switch(direction)
+    {
+        case 1: return vec3(0, 1, 1);
+        case 2: return vec3(1, 1, 0);
+        case 3: return vec3(1, 0, 1);
+        case 4: return vec3(1, 1, 0);
+        case 5: return vec3(0, 1, 0);
+        case 6: return vec3(1, 1, 1);
+    }
+}
+
+vec3 get_p4(int direction)
+{
+    switch(direction)
+    {
+        case 1: return vec3(0, 0, 1);
+        case 2: return vec3(1, 0, 0);
+        case 3: return vec3(1, 0, 0);
+        case 4: return vec3(1, 1, 1);
+        case 5: return vec3(0, 0, 0);
+        case 6: return vec3(1, 0, 1);
+    }
+}
+
 void main() {
     int direction = int(block_direction[0]);
     int idx0 = (direction - 1) / 2;
@@ -99,26 +157,37 @@ void main() {
     vec3 p4 = p2;
     p4[idx2] += 1;
 
-    vec3 normal = p1 - vec3(direction == 1, direction == 3, direction == 5);
+    vec3 normal = vec3(direction == 2, direction == 4, direction == 6) - vec3(direction == 1, direction == 3, direction == 5);
+
+    p1 = get_p1(direction);
+    p2 = get_p2(direction);
+    p3 = get_p3(direction);
+    p4 = get_p4(direction);
 
     float diffuse_factor = dot(normal, sun_direction);
     diffuse_factor = (diffuse_factor > 0 ? diffuse_factor * 0.7 + 0.3 : diffuse_factor * 0.3 + 0.3);
-    vertex_color = block_color[0] * (AMBIENT_FACTOR + diffuse_factor * DIFFUSE_FACTOR);
+    vertex_lighting = AMBIENT_FACTOR + diffuse_factor * DIFFUSE_FACTOR;
+    vertex_color = block_color[0];
+    texture_idx = block_texture_idx[0];
 
     vec3 block_position = gl_in[0].gl_Position.xyz;
 
     float primary_yaw = to_yaw(gl_in[0].gl_Position.xyz - camera_position);
 
     gl_Position = to_opengl(PROJECTION_FUNC(block_position + p1, primary_yaw));
+    texture_coordinates = vec2(0, 0);
     EmitVertex();
 
     gl_Position = to_opengl(PROJECTION_FUNC(block_position + p2, primary_yaw));
+    texture_coordinates = vec2(0, 1);
     EmitVertex();
 
     gl_Position = to_opengl(PROJECTION_FUNC(block_position + p3, primary_yaw));
+    texture_coordinates = vec2(1, 0);
     EmitVertex();
 
     gl_Position = to_opengl(PROJECTION_FUNC(block_position + p4, primary_yaw));
+    texture_coordinates = vec2(1, 1);
     EmitVertex();
     
     EndPrimitive();
@@ -142,15 +211,19 @@ void main() {
     if (next_quad)
     {
         gl_Position = to_opengl(PROJECTION_FUNC(block_position + p1, primary_yaw));
+        texture_coordinates = vec2(0, 0);
         EmitVertex();
 
         gl_Position = to_opengl(PROJECTION_FUNC(block_position + p2, primary_yaw));
+        texture_coordinates = vec2(0, 1);
         EmitVertex();
 
         gl_Position = to_opengl(PROJECTION_FUNC(block_position + p3, primary_yaw));
+        texture_coordinates = vec2(1, 0);
         EmitVertex();
 
         gl_Position = to_opengl(PROJECTION_FUNC(block_position + p4, primary_yaw));
+        texture_coordinates = vec2(1, 1);
         EmitVertex();
         
         EndPrimitive();

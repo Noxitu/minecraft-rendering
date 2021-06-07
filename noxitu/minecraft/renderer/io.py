@@ -12,3 +12,8 @@ def load_viewport():
     # return np.load('data/viewports/p2.npz')
     # return np.load('data/viewports/viewport-grian2goat.npz')
     # return np.load('data/viewports/viewport-goat.npz')
+
+
+def load_texture_atlas():
+    fd = np.load('data/texture_atlas.npz')
+    return fd['texture_atlas'], fd['texture_mapping']

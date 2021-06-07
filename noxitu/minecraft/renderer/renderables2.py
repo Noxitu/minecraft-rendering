@@ -92,6 +92,9 @@ def use_main_program(context, frame):
     program.set_uniform_mat4('projectionview_matrix', frame.projectionview_matrix)
     glUniform3f(program.uniform('sun_direction'), *frame.sun_direction)
 
+    glBindTexture(GL_TEXTURE_2D_ARRAY, context.texture_atlas)
+    glActiveTexture(GL_TEXTURE0)
+
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_CULL_FACE)
 

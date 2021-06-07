@@ -80,6 +80,10 @@ def compute_face_colors(coords, world, colors):
     return [colors[world[ys, zs, xs]] for ys, zs, xs in coords]
 
 
+def compute_face_ids(coords, world):
+    return [world[ys, zs, xs] for ys, zs, xs in coords]
+
+
 def compute_faces(face_coords, face_colors):
     pts = np.concatenate([
         np.stack([xs, ys, zs], axis=1).reshape(-1, 1, 3) + CUBE_VERTICES[CUBE_FACES[i]].reshape(1, 4, 3)

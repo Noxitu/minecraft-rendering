@@ -66,13 +66,16 @@ def create_vao(array):
     glBindBuffer(GL_ARRAY_BUFFER, vbo)
 
     glEnableVertexAttribArray(0)
-    glVertexAttribPointer(0, 3, GL_SHORT, GL_FALSE, 10, c_void_p(0))
+    glVertexAttribPointer(0, 3, GL_SHORT, GL_FALSE, 12, c_void_p(0))
 
     glEnableVertexAttribArray(1)
-    glVertexAttribIPointer(1, 3, GL_UNSIGNED_BYTE, 10, c_void_p(6))
+    glVertexAttribIPointer(1, 1, GL_UNSIGNED_BYTE, 12, c_void_p(6))
 
     glEnableVertexAttribArray(2)
-    glVertexAttribPointer(2, 3, GL_UNSIGNED_BYTE, GL_TRUE, 10, c_void_p(7))
+    glVertexAttribPointer(2, 3, GL_UNSIGNED_BYTE, GL_TRUE, 12, c_void_p(7))
+
+    glEnableVertexAttribArray(3)
+    glVertexAttribIPointer(3, 1, GL_SHORT, 12, c_void_p(10))
 
     return vbo, vao, len(array)
 
@@ -90,7 +93,8 @@ def create_program(name, *, gs=True, **defines):
 def main():
     LOGGER.info('Loading data...')
     blocks = noxitu.minecraft.renderer.io.load_blocks()
-    # viewport = noxitu.minecraft.renderer.io.load_viewport()    
+    # viewport = noxitu.minecraft.renderer.io.load_viewport()
+    texture_atlas, _ = noxitu.minecraft.renderer.io.load_texture_atlas()
 
     mega_chunks = compute_mega_chunks(blocks)
     blocks = None
@@ -107,6 +111,13 @@ def main():
         noxitu.opengl.create_texture_framebuffer(PANORAMA_WIDTH, PANORAMA_HEIGHT),
         noxitu.opengl.create_texture_framebuffer(PANORAMA_WIDTH, PANORAMA_HEIGHT)
     )
+
+    texture_atlas_tex = glGenTextures(1)
+    glBindTexture(GL_TEXTURE_2D_ARRAY, texture_atlas_tex)
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, 16, 16, len(texture_atlas), 0, GL_RGBA, GL_UNSIGNED_BYTE, c_void_p(texture_atlas.ctypes.data))
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+    glGenerateMipmap(GL_TEXTURE_2D_ARRAY)
 
     panoramabox_program = create_program('render_panorama_box', gs=False)
     panoramabox_program_debug = create_program('render_panorama_box', gs=False, BOX_VISIBILITY_FACTOR=0.5)
@@ -127,6 +138,8 @@ def main():
 
         panorama_framebuffer=panorama_framebuffer,
         default_framebuffer=0,
+
+        texture_atlas=texture_atlas_tex,
 
         panorama_renderer_program=panorama_renderer_program,
         panoramabox_program=panoramabox_program,
