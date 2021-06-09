@@ -11,7 +11,8 @@ import noxitu.opengl
 
 SCREEN_WIDTH, SCREEN_HEIGHT = 100, 100
 
-PROGRAM_LOCAL_SIZE = 16, 16, 1
+PROGRAM_LOCAL_SIZE = 16 * 16 * 1
+BATCH_SIZE = PROGRAM_LOCAL_SIZE * 10_000
 
 LOGGER = logging.getLogger(__name__)
 
@@ -27,15 +28,7 @@ def create_depths(rays):
     return np.zeros(rays.shape[:-1], dtype=np.float32)
 
 
-def compute_workgroup_num(rays, local_size):
-    local_size_x, local_size_y, local_size_z = local_size
-
-    def ceil_div(val, div): return int((val + div - 1) // div)
-
-    n_rays = len(rays.reshape(-1, rays.shape[-1]))
-    size = local_size_x * local_size_y * local_size_z
-
-    return ceil_div(n_rays, size), 1, 1
+def ceil_div(val, div): return int((val + div - 1) // div)
 
 
 def buffer_data(ssbo, array, usage=GL_STATIC_DRAW):
@@ -85,30 +78,37 @@ class Raycaster:
 
         self._program.use()
         glUniform1ui(self._program.uniform('n_rays'), n_rays)
-        glUniform1ui(self._program.uniform('ray_offset'), 0)
         glUniform1iv(self._program.uniform('world_shape'), 3, self._world_shape)
 
         LOGGER.info('Dispatching jobs...')
         raycasting_start_time = time.time()
         queries = []
 
-        for _ in range(times):
-            query, = glGenQueries(1)
-            queries.append(query)
+        for offset in range(0, n_rays, BATCH_SIZE):
+            glUniform1ui(self._program.uniform('ray_offset'), offset)
 
-            glBeginQuery(GL_TIME_ELAPSED, query)
-            glDispatchCompute(*compute_workgroup_num(rays, PROGRAM_LOCAL_SIZE))
-            glEndQuery(GL_TIME_ELAPSED)
+            current_batch_size = min(n_rays - offset, BATCH_SIZE)
+            current_workgroup_num = ceil_div(current_batch_size, PROGRAM_LOCAL_SIZE)
 
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
-            glFlush()
+            for _ in range(times):
+                query, = glGenQueries(1)
+                queries.append(query)
+
+                glBeginQuery(GL_TIME_ELAPSED, query)
+                glDispatchCompute(current_workgroup_num, 1, 1)
+                glEndQuery(GL_TIME_ELAPSED)
+
+                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
+                glFlush()
 
         LOGGER.info('Waiting for jobs...')
 
         elapsed_time = np.zeros((1,), dtype=np.int64)
         for i, query in enumerate(queries):
             glGetQueryObjectui64v(query, GL_QUERY_RESULT, c_void_p(elapsed_time.ctypes.data))
-            LOGGER.info(f'  Compute #{i} took \033[31m{elapsed_time[0]/1e6:.0f}\033[m ms')
+
+            if elapsed_time > 10e6:
+                LOGGER.info(f'  Compute #{i} took \033[31m{elapsed_time[0]/1e6:.0f}\033[m ms')
 
         glFinish()
 

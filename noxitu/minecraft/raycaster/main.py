@@ -16,16 +16,13 @@ GLOBAL_COLORS_MASK = np.array([c is not None for c in GLOBAL_COLORS])
 GLOBAL_COLORS = np.array([c if c is not None else [0, 0, 0] for c in GLOBAL_COLORS], dtype=np.uint8)
 IS_WATER = np.array([MATERIALS.get(name) == 'water' for name in GLOBAL_PALETTE])
 
-# render_height, render_width = 360, 640
-# render_height, render_width = 720, 1280
-# render_height, render_width = 1080, 1920
-# render_height, render_width = 1080*2, 1920*2
 
 RENDER_SHAPE = 1080, 1920
+# RENDER_SHAPE = 1080*4, 1920*4
 
 WATER_SURFACE_DIFFUSION_FACTOR = 0.5
 WATER_DEPTH_DIFFUSION_FACTOR = 0.94
-AMBIENT_FACTOR, DIFFUSE_FACTOR = normalize_factors(0.5, 0.5)
+AMBIENT_FACTOR, DIFFUSE_FACTOR = normalize_factors(0.15, 0.85)
 
 USE_OPENGL = True
 
@@ -129,14 +126,30 @@ def main():
     def do_raycast(rays, *,
                    block_mask=primary_block_mask,
                    sun_direction=SUN_DIRECTION,
-                   compute_shadows=True,
-                   compute_water_reflections=True,
-                   compute_underwater=True):
+                   compute_shadows=False,
+                   compute_water_reflections=False,
+                   compute_underwater=False):
         n_rays = np.prod(rays.shape[::-1])
         LOGGER.info(f'Raycasting {n_rays:,} rays...')
         ids, depths, normal_idx = raycast(rays, world, block_mask)
         colors = GLOBAL_COLORS[ids]
         hit_mask = (ids != 0)
+
+        # # Sky color
+        # sunlight_diffusion = np.array([0.05, 0.1, 0.2])
+        # # diffused from direct = 1-sunlight_diffusion
+        # sunlight_strength = 255000
+
+        # cosines = np.einsum('ni,i->n', rays[~hit_mask, 3:], sun_direction)
+        # coeff = (1 + np.power(cosines, 2)) / 2
+        # # colors[~hit_mask] = np.clip(255 * coeff, 0, 255)[..., np.newaxis]
+
+        # diffused_color = sunlight_strength * (0.66 * sunlight_diffusion)
+        # direct_color= sunlight_strength * (1-sunlight_diffusion) * coeff[..., np.newaxis]
+
+        # # colors[~hit_mask] = np.clip(np.sqrt(diffused_color+direct_color), 0, 255)
+        # colors[~hit_mask] = np.clip(np.sqrt(diffused_color), 0, 255)
+        # colors[~hit_mask] = np.clip(np.sqrt(direct_color), 0, 255)
 
         if texture_mapping is not None:
             hit_ids = ids[hit_mask]
@@ -152,7 +165,13 @@ def main():
             offsets2d = np.einsum('nji,ni->nj', face_uvs[..., :3], offsets3d) + face_uvs[..., 3]
             offsets2d = np.clip((16*offsets2d).astype(np.uint8), 0, 15)
 
-            colors[chain_masks(hit_mask, texture_mask)] = texture_atlas[texture_idx, offsets2d[:, 1], offsets2d[:, 0], :3][texture_mask]
+            grass_mask = (texture_idx[texture_mask] == 7)
+
+            target_colors = texture_atlas[texture_idx, offsets2d[:, 1], offsets2d[:, 0], :3][texture_mask].copy()
+            print(target_colors.shape)
+            target_colors[grass_mask] = target_colors[grass_mask] * np.array([0x7C, 0xBD, 0x6B]) / 255 
+
+            colors[chain_masks(hit_mask, texture_mask)] = target_colors
 
         diffuse_factors = noxitu.minecraft.raycaster.rays.compute_diffuse_factors(NORMALS_IDX,
                                                                                   sun_direction,
@@ -166,7 +185,7 @@ def main():
             diffuse_factors[chain_masks(hit_mask, shadow_mask)] *= 0.3
             diffuse_factors[chain_masks(hit_mask, shadow_mask)] -= -0.2
 
-        colors[:] = colors * (diffuse_factors*DIFFUSE_FACTOR + AMBIENT_FACTOR)[..., np.newaxis]
+        colors[hit_mask] = colors[hit_mask] * (diffuse_factors*DIFFUSE_FACTOR + AMBIENT_FACTOR)[..., np.newaxis][hit_mask]
 
         if compute_underwater or compute_water_reflections:
             water_mask = IS_WATER[ids]
@@ -213,9 +232,10 @@ def main():
 
             if compute_water_reflections:
                 LOGGER.info('Computing water reflection rays...')
+                reflection_direction = [1, 1, 1] - 2 * abs(NORMALS_IDX[normal_idx[water_mask]])
                 water_reflection_rays = noxitu.minecraft.raycaster.rays.compute_shadow_rays(rays[water_mask], 
                                                                                             depths[water_mask]-0.01,
-                                                                                            rays[water_mask, 3:] * [1, -1, 1])
+                                                                                            rays[water_mask, 3:] * reflection_direction)
 
                 reflected_ids, _, _, water_reflection_colors = do_raycast(water_reflection_rays,
                                                                         block_mask=primary_block_mask,

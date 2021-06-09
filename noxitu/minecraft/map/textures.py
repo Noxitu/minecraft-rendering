@@ -171,7 +171,8 @@ def main():
         model = get_model(model['model'])
 
         if block_id == 'minecraft:grass_block':
-            # assign_texture(state_id, 'block/grass_block_top', TOP)
+            assign_texture(state_id, 'block/grass_block_top', TOP)
+            tqdm.write(f'Grass is {texture2index["block/grass_block_top"]}')
             assign_texture(state_id, 'block/grass_block_side', WEST, EAST, NORTH, SOUTH)
             assign_texture(state_id, 'block/dirt', BOTTOM)
             # tqdm.write(block_id)

@@ -8,6 +8,7 @@
     "files.exclude": {
         "*.egg-info/": true,
         "**/__pycache__": true,
-        "**/.pytest_cache": true
+        "**/.pytest_cache": true,
+        "data/minecaft_data": true
     }
 }
