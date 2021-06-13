@@ -140,6 +140,10 @@ def main():
             if img.shape != (16, 16, 4):
                 raise Exception()
 
+            if texture == 'block/grass_block_top':
+                tqdm.write('Colorizing grass...')
+                img[:] = img * (np.array([0x7C, 0xBD, 0x6B, 0xFF], dtype=float) / 255)
+
             textures.append(img)
 
         block2textures[state_id, dirs] = texture_idx

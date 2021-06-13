@@ -17,12 +17,23 @@ def main():
 
     S = 4000
     # S = 40
+    # W = 140
+    # H = 100
+    W = 100
+    H = 60
+
+    # offset, world = noxitu.minecraft.map.load.load('data/chunks',
+    #                                                tqdm=tqdm,
+    #                                                x_range=slice(-W, W+1),
+    #                                                y_range=slice(16, 256),
+    #                                                z_range=slice(-H, H+1)
+    #                                             )
 
     offset, world = noxitu.minecraft.map.load.load('data/chunks',
                                                    tqdm=tqdm,
-                                                   x_range=slice(-S, S+1),
-                                                   y_range=slice(16, 256),
-                                                   z_range=slice(-S, S+1)
+                                                   x_range=slice(-207, 114),
+                                                   y_range=slice(2, 256),
+                                                   z_range=slice(-82, 126)
                                                 )
     offset = offset[[2, 0, 1]]
 

@@ -17,12 +17,13 @@ GLOBAL_COLORS = np.array([c if c is not None else [0, 0, 0] for c in GLOBAL_COLO
 IS_WATER = np.array([MATERIALS.get(name) == 'water' for name in GLOBAL_PALETTE])
 
 
-RENDER_SHAPE = 1080, 1920
+# RENDER_SHAPE = 1080, 1920
+RENDER_SHAPE = 1080*2, 1920*2
 # RENDER_SHAPE = 1080*4, 1920*4
 
 WATER_SURFACE_DIFFUSION_FACTOR = 0.5
 WATER_DEPTH_DIFFUSION_FACTOR = 0.94
-AMBIENT_FACTOR, DIFFUSE_FACTOR = normalize_factors(0.15, 0.85)
+AMBIENT_FACTOR, DIFFUSE_FACTOR = normalize_factors(0.25, 0.75)
 
 USE_OPENGL = True
 
@@ -99,9 +100,8 @@ def main():
     LOGGER.info('Loading textures...')
     texture_atlas, texture_mapping = io.load_texture_atlas()
 
-    LOGGER.info('Limiting world size...')
-    offset, world = reduce_size(offset, world, viewport['position'], viewport['rotation'][:3, :3])
-    # np.savez('data/tmp-goat.npz', offset=offset[[1, 2, 0]], world=world)
+    # LOGGER.info('Limiting world size...')
+    # offset, world = reduce_size(offset, world, viewport['position'], viewport['rotation'][:3, :3])
 
     LOGGER.info('Computing rays...')
     rays = create_camera_rays(RENDER_SHAPE, viewport, offset)
@@ -126,9 +126,9 @@ def main():
     def do_raycast(rays, *,
                    block_mask=primary_block_mask,
                    sun_direction=SUN_DIRECTION,
-                   compute_shadows=False,
-                   compute_water_reflections=False,
-                   compute_underwater=False):
+                   compute_shadows=True,
+                   compute_water_reflections=True,
+                   compute_underwater=True):
         n_rays = np.prod(rays.shape[::-1])
         LOGGER.info(f'Raycasting {n_rays:,} rays...')
         ids, depths, normal_idx = raycast(rays, world, block_mask)

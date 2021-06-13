@@ -5,7 +5,26 @@ import noxitu.minecraft.map.load
 
 
 def load_world():
-    if False:
+    if True:
+        # offset, world = noxitu.minecraft.map.load.load(
+        #     'data/chunks',
+        #     tqdm=tqdm,
+        #     x_range=slice(55, 125),
+        #     y_range=slice(0, 256),
+        #     z_range=slice(-75, -37)
+        # )
+
+        offset, world = noxitu.minecraft.map.load.load(
+            'data/chunks',
+            tqdm=tqdm,
+            x_range=slice(-500, 0),
+            y_range=slice(20, 256),
+            z_range=slice(-20, 580)
+        )
+
+        if False:
+            np.savez('data/goat.npz', offset=offset, world=world)
+    elif False:
         RADIUS = 15
 
         offset, world = noxitu.minecraft.map.load.load(
@@ -38,11 +57,11 @@ def load_world():
 # load_world()
 
 def load_viewport():
-    # return np.load('data/viewports/viewport.npz')
+    return np.load('data/viewports/viewport.npz')
     # return np.load('data/viewports/p1.npz')
     # return np.load('data/viewports/p2.npz')
     # return np.load('data/viewports/viewport-grian2goat.npz')
-    return np.load('data/viewports/viewport-goat.npz')
+    # return np.load('data/viewports/viewport-goat.npz')
 
 def load_texture_atlas():
     fd = np.load('data/texture_atlas.npz')

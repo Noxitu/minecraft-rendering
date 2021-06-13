@@ -20,7 +20,7 @@ def parse(buffer, offset=0):
     def pop_long():
         nonlocal offset
         offset += 8
-        return struct.unpack_from('>l', buffer, offset-8)[0]
+        return struct.unpack_from('>q', buffer, offset-8)[0]
 
     def pop_float():
         nonlocal offset
@@ -55,6 +55,14 @@ def parse(buffer, offset=0):
 
         return ret
 
+    def pop_byte_array():
+        length = pop_int()
+        return [pop_byte() for _ in range(length)]
+
+    def pop_int_array():
+        length = pop_int()
+        return [pop_int() for _ in range(length)]
+
     def pop_long_array():
         length = pop_int()
         return [pop_long() for _ in range(length)]
@@ -66,9 +74,11 @@ def parse(buffer, offset=0):
         0x04: pop_long,
         0x05: pop_float,
         0x06: pop_double,
+        0x07: pop_byte_array,
         0x08: pop_string,
         0x09: pop_list,
         0x0a: pop_compound,
+        0x0b: pop_int_array,
         0x0c: pop_long_array
     }
 

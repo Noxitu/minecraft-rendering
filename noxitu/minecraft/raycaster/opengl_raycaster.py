@@ -12,7 +12,7 @@ import noxitu.opengl
 SCREEN_WIDTH, SCREEN_HEIGHT = 100, 100
 
 PROGRAM_LOCAL_SIZE = 16 * 16 * 1
-BATCH_SIZE = PROGRAM_LOCAL_SIZE * 10_000
+BATCH_SIZE = PROGRAM_LOCAL_SIZE * 1_000
 
 LOGGER = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class Raycaster:
         self._masks_ssbos[name] = ssbo
         return name
 
-    def raycast(self, rays, _, mask_name, times=10):
+    def raycast(self, rays, _, mask_name, times=30):
         rays = rays.astype(np.float32)
         state = create_state(rays)
         depths = create_depths(rays)
